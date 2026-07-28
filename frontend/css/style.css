@@ -1,0 +1,262 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0e14;
+  --panel-bg: #12161f;
+  --border: #232838;
+  --text: #d7dbe4;
+  --muted: #8590a6;
+  --accent: #4f8cff;
+  --accent-hover: #6b9fff;
+  --danger: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+#app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+}
+
+#app-header h1 {
+  font-size: 17px;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+#dimension-badge {
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+#current-dimension {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+#main-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 300px;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.panel {
+  background: var(--panel-bg);
+  padding: 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+}
+
+#projection-panel {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.panel h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 18px 0 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.panel h2:first-of-type {
+  margin-top: 0;
+}
+
+.field {
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: 13px;
+  background: #1a1f2b;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+textarea {
+  resize: vertical;
+  font-family: "Cascadia Code", Consolas, monospace;
+}
+
+button {
+  cursor: pointer;
+  width: 100%;
+  margin-top: 4px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #05070c;
+  font-weight: 600;
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+#viewer-container {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#viewer-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#viewer-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(11, 14, 20, 0.7);
+  padding: 4px 10px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.meta-readout {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: 8px;
+  word-break: break-word;
+}
+
+.error-readout {
+  font-size: 12px;
+  color: var(--danger);
+  margin-top: 8px;
+  white-space: pre-wrap;
+}
+
+.hint-text {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.rotation-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.4fr auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.rotation-row select {
+  padding: 4px;
+}
+
+.rotation-row input[type="range"] {
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.rotation-row button {
+  width: auto;
+  padding: 4px 8px;
+  margin: 0;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.metric-group {
+  background: #171c28;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.metric-group h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.metric-group div {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.metric-note {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}

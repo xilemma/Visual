@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>N-D Projection Studio</title>
+<link rel="stylesheet" href="/css/style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <header id="app-header">
+    <h1>N-D Projection Studio</h1>
+    <div id="dimension-badge">dimension: <span id="current-dimension">&ndash;</span></div>
+  </header>
+
+  <div id="main-layout">
+    <aside id="structure-panel" class="panel">
+      <h2>Structure</h2>
+      <div class="field">
+        <label for="structure-type-select">Type</label>
+        <select id="structure-type-select"></select>
+      </div>
+      <div id="structure-params"></div>
+      <button id="generate-btn" class="primary">Generate</button>
+      <div id="structure-meta" class="meta-readout"></div>
+      <div id="structure-error" class="error-readout"></div>
+    </aside>
+
+    <main id="viewer-container">
+      <canvas id="viewer-canvas"></canvas>
+      <div id="viewer-hint">drag to orbit &middot; scroll to zoom &middot; right-drag to pan</div>
+    </main>
+
+    <aside id="projection-panel" class="panel">
+      <h2>Projection</h2>
+      <div class="field">
+        <label for="projection-method-select">Method</label>
+        <select id="projection-method-select"></select>
+      </div>
+      <div id="projection-params"></div>
+      <button id="apply-projection-btn" class="primary">Apply Projection</button>
+      <div id="projection-error" class="error-readout"></div>
+
+      <h2>Rotation planes</h2>
+      <div id="rotation-controls"></div>
+      <button id="add-rotation-btn">+ Add rotation plane</button>
+      <label class="checkbox-label"><input type="checkbox" id="rotation-enabled" checked /> Animate</label>
+
+      <h2>Leakage metrics</h2>
+      <p class="hint-text">Compares the current N-D point positions to their live 3D projection.</p>
+      <button id="analyze-btn">Analyze Leakage</button>
+      <div id="metrics-readout"></div>
+    </aside>
+  </div>
+</div>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>
