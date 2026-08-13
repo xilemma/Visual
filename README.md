@@ -56,8 +56,21 @@ ndstudio/                 Python backend package
 frontend/
   index.html, css/, js/     Three.js viewer + schema-driven control panels
 tests/                     pytest suite for structures, projections, metrics, API
+docs/                      reference docs (see below)
 run.py                     dev server launcher
 ```
+
+New to N-dimensional geometry or this app? Start with
+[docs/tutorial.md](docs/tutorial.md) — a beginner-friendly walkthrough that
+explains the concepts (dimensions, projections, rotation planes, position,
+leakage metrics) from scratch and guides you through installation and your
+first session, no prior background assumed.
+
+See [docs/ui-controls.md](docs/ui-controls.md) for a full reference of every
+UI control (structure/projection forms, rotation planes, position, leakage metrics)
+and — importantly — how they affect each other (e.g. what Generate resets
+vs. preserves, what Apply Projection vs. Analyze Leakage each operate on,
+and a few non-obvious quirks in the current implementation).
 
 ## Setup
 
@@ -91,15 +104,18 @@ first time a browser loads the page.
    matrix (orthogonal/PCA/JL/custom, plus a mean to subtract first) or a
    small set of parameters for the nonlinear perspective/stereographic
    formulas.
-3. **Animate**: the browser applies rotation-in-a-coordinate-plane and the
-   projection recipe to every point, every frame, in JavaScript
-   (`frontend/js/mathnd.js`) — no network round trip per frame, so rotation
-   stays smooth. These formulas are unit-tested against the Python
+3. **Rotate & position**: the browser applies rotation-in-a-coordinate-plane,
+   an optional N-D translation offset, and the projection recipe to every
+   point, every frame, in JavaScript (`frontend/js/mathnd.js`) — no network
+   round trip per frame, so everything stays smooth (rotation pausable at
+   any time via the Pause button, position resettable via Reset position).
+   The rotation and projection formulas are unit-tested against the Python
    reference implementations in `ndstudio/projections/methods.py` to keep
-   the two in lockstep.
-4. **Analyze**: clicking "Analyze Leakage" sends the *current* rotated N-D
-   points and their live 3D projection back to the server, which computes
-   the five leakage metrics authoritatively with SciPy.
+   the two in lockstep; translation has no server-side equivalent to check
+   against, since it's a purely client-side convenience.
+4. **Analyze**: clicking "Analyze Leakage" sends the *current* rotated and
+   translated N-D points and their live 3D projection back to the server,
+   which computes the five leakage metrics authoritatively with SciPy.
 
 ## Notes & constraints
 
@@ -115,3 +131,5 @@ first time a browser loads the page.
 - Leakage metrics are computed on a random subsample (default cap 400
   points) when the point set is larger, for responsiveness; the response
   reports whether subsampling occurred.
+
+  Get-Process -Id 30940 | Select-Object -Property Id,ProcessName,Path

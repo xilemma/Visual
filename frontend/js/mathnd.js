@@ -18,13 +18,19 @@ export function rotatePlane(points, i, j, theta) {
   return out;
 }
 
-export function applyRotations(basePoints, rotations, t) {
+// Each row's own persisted `angle` (not a shared elapsed-time formula) is what
+// makes pausing/resuming possible -- see Viewer._loop, which increments it.
+export function applyRotations(basePoints, rotations) {
   let pts = basePoints;
   for (const r of rotations) {
-    const theta = r.speed * t;
-    pts = rotatePlane(pts, r.plane[0], r.plane[1], theta);
+    pts = rotatePlane(pts, r.plane[0], r.plane[1], r.angle);
   }
   return pts;
+}
+
+// Shifts every point by a fixed N-D vector; applied after rotation, before projection.
+export function translate(points, offset) {
+  return points.map((p) => p.map((v, i) => v + (offset[i] || 0)));
 }
 
 export function applyMatrixProjection(points, matrix, mean) {

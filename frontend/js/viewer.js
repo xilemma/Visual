@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { applyRotations, applyProjection } from "./mathnd.js";
+import { applyRotations, translate, applyProjection } from "./mathnd.js";
 
 const PALETTE = [
   [0.36, 0.64, 0.98],
@@ -42,11 +42,12 @@ export class Viewer {
     this.basePoints = [];
     this.edges = [];
     this.labels = null;
-    this.rotations = [];
+    this.rotations = []; // each entry: { id, plane: [i, j], speed, angle }
+    this.offset = []; // N-D translation offset, added after rotation, before projection
     this.animating = true;
     this.projectionRecipe = null;
-    this.startTime = performance.now();
-    this._lastRotated = [];
+    this._lastFrameTime = null;
+    this._lastTransformed = [];
     this._lastProjected = [];
 
     this._resize();
@@ -68,7 +69,7 @@ export class Viewer {
     this.basePoints = points;
     this.edges = edges || [];
     this.labels = labels || null;
-    this.startTime = performance.now();
+    this.resetRotations();
     this._colorFromLabels();
   }
 
@@ -76,12 +77,29 @@ export class Viewer {
     this.projectionRecipe = recipe;
   }
 
+  /** Merges in new plane/speed config while preserving each row's live angle (matched by id). */
   setRotations(rotations) {
-    this.rotations = rotations;
+    const prevAngles = new Map(this.rotations.map((r) => [r.id, r.angle]));
+    this.rotations = rotations.map((r) => ({ ...r, angle: prevAngles.get(r.id) ?? 0 }));
+  }
+
+  /** One-shot override of a single row's live angle (radians) -- bypasses setRotations()'s angle-preserving merge. */
+  setRotationAngle(id, radians) {
+    const r = this.rotations.find((row) => row.id === id);
+    if (r) r.angle = radians;
+  }
+
+  setOffset(offset) {
+    this.offset = offset;
   }
 
   setAnimating(flag) {
     this.animating = flag;
+  }
+
+  /** Snaps every rotation plane back to angle 0 (the just-generated/just-reset pose). */
+  resetRotations() {
+    for (const r of this.rotations) r.angle = 0;
   }
 
   _colorFromLabels() {
@@ -97,25 +115,28 @@ export class Viewer {
     this.pointsGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   }
 
-  _elapsed() {
-    return (performance.now() - this.startTime) / 1000;
-  }
-
-  /** Snapshot of the current (rotated) N-D points and their live 3D projection,
+  /** Snapshot of the current (rotated + translated) N-D points and their live 3D projection,
    *  used to send to the /api/metrics endpoint. */
   getSnapshotForMetrics() {
-    return { pointsNd: this._lastRotated, points3d: this._lastProjected };
+    return { pointsNd: this._lastTransformed, points3d: this._lastProjected };
   }
 
-  _loop() {
+  _loop(now) {
     requestAnimationFrame(this._loop);
+    // Clamp dt so a backgrounded/throttled tab can't produce one huge angle jump on return.
+    const dt = this._lastFrameTime != null ? Math.min((now - this._lastFrameTime) / 1000, 0.25) : 0;
+    this._lastFrameTime = now;
+
+    if (this.animating) {
+      for (const r of this.rotations) r.angle += r.speed * dt;
+    }
 
     if (this.basePoints.length && this.projectionRecipe) {
-      const t = this.rotations.length && this.animating ? this._elapsed() : 0;
-      const rotated = this.rotations.length ? applyRotations(this.basePoints, this.rotations, t) : this.basePoints;
-      const projected = applyProjection(rotated, this.projectionRecipe);
+      const rotated = this.rotations.length ? applyRotations(this.basePoints, this.rotations) : this.basePoints;
+      const moved = this.offset.some((v) => v !== 0) ? translate(rotated, this.offset) : rotated;
+      const projected = applyProjection(moved, this.projectionRecipe);
       this._updateGeometry(projected);
-      this._lastRotated = rotated;
+      this._lastTransformed = moved;
       this._lastProjected = projected;
     }
 

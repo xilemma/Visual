@@ -18,46 +18,55 @@
 <div id="app">
   <header id="app-header">
     <h1>N-D Projection Studio</h1>
-    <div id="dimension-badge">dimension: <span id="current-dimension">&ndash;</span></div>
+    <div id="dimension-badge" data-tooltip="Read-only. Set from the server's response after a successful Generate, not from the Dimension field below until Generate succeeds.&#10;&#10;This value clamps the axis dropdowns in the Projection panel (axis_x/y/z, pole_axis) and the axis choices in every Rotation plane row.">dimension: <span id="current-dimension">&ndash;</span></div>
   </header>
 
   <div id="main-layout">
     <aside id="structure-panel" class="panel">
-      <h2>Structure</h2>
+      <h2 data-tooltip="Generates the N-D point set. This is the only panel that can change the dimension, which the Projection panel and Rotation planes both depend on.">Structure</h2>
       <div class="field">
-        <label for="structure-type-select">Type</label>
-        <select id="structure-type-select"></select>
+        <label for="structure-type-select" data-tooltip="Chooses which N-D structure generator to use. Changing this rebuilds the parameter fields below to match the new type's schema, including its own Dimension field (a free range for most types, a fixed choice of 6/7/8 for Root System E_n). Does not regenerate anything by itself -- click Generate to apply it.">Type</label>
+        <select id="structure-type-select" data-tooltip="Chooses which N-D structure generator to use. Changing this rebuilds the parameter fields below to match the new type's schema, including its own Dimension field (a free range for most types, a fixed choice of 6/7/8 for Root System E_n). Does not regenerate anything by itself -- click Generate to apply it."></select>
       </div>
       <div id="structure-params"></div>
-      <button id="generate-btn" class="primary">Generate</button>
-      <div id="structure-meta" class="meta-readout"></div>
-      <div id="structure-error" class="error-readout"></div>
+      <button id="generate-btn" class="primary" data-tooltip="Sends the Structure panel's fields to the server and replaces the point cloud in the viewer.&#10;&#10;Also updates the dimension badge, re-clamps every Rotation plane row and Projection axis field to the new dimension, resets the rotation clock to zero, and resets every Projection panel field to its default (a hand-edited custom matrix is preserved). Then automatically re-applies the current projection method so the new structure is visible immediately.">Generate</button>
+      <div id="structure-meta" class="meta-readout" data-tooltip="Read-only summary from the last successful Generate (point count plus structure-specific details, e.g. radius or packing radius). Replaced on every new Generate."></div>
+      <div id="structure-error" class="error-readout" data-tooltip="Shows the error message from the last failed Generate attempt (e.g. an out-of-range parameter). Cleared as soon as you click Generate again."></div>
     </aside>
 
     <main id="viewer-container">
-      <canvas id="viewer-canvas"></canvas>
+      <canvas id="viewer-canvas" data-tooltip="Left-drag to orbit the camera, scroll to zoom, right-drag to pan.&#10;&#10;These only move the camera viewpoint -- they never change the underlying N-D coordinates and are independent of the Rotation plane controls, which actually spin the N-D structure before it is projected."></canvas>
       <div id="viewer-hint">drag to orbit &middot; scroll to zoom &middot; right-drag to pan</div>
     </main>
 
     <aside id="projection-panel" class="panel">
-      <h2>Projection</h2>
+      <h2 data-tooltip="Flattens the current N-D points to the 3 coordinates the viewer draws. Works together with Rotation planes below: rotation is applied first, every frame, then this panel's fixed projection recipe.">Projection</h2>
       <div class="field">
-        <label for="projection-method-select">Method</label>
-        <select id="projection-method-select"></select>
+        <label for="projection-method-select" data-tooltip="Chooses how N-D points are flattened to 3D. Changing this rebuilds the parameter fields below, with any axis-type field clamped to the current dimension. Does not re-render the view -- click Apply Projection afterward (the exception is right after Generate, which auto-applies the selected method).">Method</label>
+        <select id="projection-method-select" data-tooltip="Chooses how N-D points are flattened to 3D. Changing this rebuilds the parameter fields below, with any axis-type field clamped to the current dimension. Does not re-render the view -- click Apply Projection afterward (the exception is right after Generate, which auto-applies the selected method)."></select>
       </div>
       <div id="projection-params"></div>
-      <button id="apply-projection-btn" class="primary">Apply Projection</button>
-      <div id="projection-error" class="error-readout"></div>
+      <button id="apply-projection-btn" class="primary" data-tooltip="Computes a projection recipe from the current UN-ROTATED base points (not the live rotated view) and applies it in the viewer.&#10;&#10;The recipe is fixed once computed: every animation frame rotates the points first, then applies this same fixed recipe. PCA/Johnson-Lindenstrauss bases are therefore computed once at Apply time and do not follow an active rotation.">Apply Projection</button>
+      <div id="projection-error" class="error-readout" data-tooltip="Shows the error message from the last failed Apply Projection attempt (e.g. a custom matrix with the wrong shape). Cleared as soon as you click Apply Projection again."></div>
 
-      <h2>Rotation planes</h2>
+      <h2 data-tooltip="Spins the N-D structure itself (not the camera) before it is projected. Purely client-side -- none of this is ever sent to the server as parameters; only the resulting coordinates are, when you click Analyze Leakage.">Rotation planes</h2>
       <div id="rotation-controls"></div>
-      <button id="add-rotation-btn">+ Add rotation plane</button>
-      <label class="checkbox-label"><input type="checkbox" id="rotation-enabled" checked /> Animate</label>
+      <button id="add-rotation-btn" data-tooltip="Adds a rotation-plane row (capped at one row per dimension). New rows default to the first pair of axes no other row is using yet, so they start fully independent -- only once every axis is already in use does a new row fall back to reusing one.">+ Add rotation plane</button>
+      <div class="rotation-toolbar">
+        <button id="pause-btn" aria-pressed="false" data-tooltip="Pauses rotation exactly where it is right now -- every row's current angle is held in place, not reset. Click again (now labeled Resume) to keep animating from that same pose.">&#9208; Pause</button>
+        <button id="reset-rotation-btn" data-tooltip="Snaps every rotation plane back to angle 0, exactly how the structure looked right after the last Generate. Unlike Pause, this discards the current orientation. Works whether rotation is playing or paused.">Reset rotation</button>
+      </div>
 
-      <h2>Leakage metrics</h2>
+      <h2 data-tooltip="Shifts the N-D structure itself before projection, applied every frame after rotation. Purely client-side, like Rotation planes -- never sent to the server except as part of whatever coordinates Analyze Leakage captures. Resets to 0 on every Generate.">Position</h2>
+      <div id="position-controls"></div>
+      <div class="position-toolbar">
+        <button id="reset-position-btn" data-tooltip="Snaps every axis back to 0, exactly how the structure looked right after the last Generate.">Reset position</button>
+      </div>
+
+      <h2 data-tooltip="Compares whatever is currently on screen (including any live rotation) to its N-D source, using the server's SciPy implementation. Requires a generated structure and an applied projection first.">Leakage metrics</h2>
       <p class="hint-text">Compares the current N-D point positions to their live 3D projection.</p>
-      <button id="analyze-btn">Analyze Leakage</button>
-      <div id="metrics-readout"></div>
+      <button id="analyze-btn" data-tooltip="Sends the exact N-D points and 3D projection currently drawn on screen -- including any live rotation -- to the server for the five leakage metrics below.&#10;&#10;This is the opposite input to Apply Projection (which always uses the un-rotated base points), so results will differ between clicks while animating. For reproducible results, click Pause first (or set every rotation row's speed to 0).">Analyze Leakage</button>
+      <div id="metrics-readout" data-tooltip="Populated by Analyze Leakage. Shows a subset of each metric group's fields -- the full response includes a few extra fields visible only via the browser's network inspector."></div>
     </aside>
   </div>
 </div>

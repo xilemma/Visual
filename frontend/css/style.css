@@ -110,6 +110,14 @@ body {
   color: var(--muted);
 }
 
+.panel h2[data-tooltip],
+.meta-readout[data-tooltip],
+.error-readout[data-tooltip],
+#dimension-badge[data-tooltip],
+.field label[data-tooltip] {
+  cursor: help;
+}
+
 input, select, textarea, button {
   font-family: inherit;
   font-size: 13px;
@@ -147,17 +155,27 @@ button.primary:hover {
   background: var(--accent-hover);
 }
 
-.checkbox-label {
+.rotation-toolbar {
   display: flex;
-  align-items: center;
   gap: 6px;
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
-.checkbox-label input {
-  width: auto;
+.rotation-toolbar button {
+  flex: 1;
+}
+
+#pause-btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.position-toolbar {
+  display: flex;
+  gap: 6px;
+}
+
+.position-toolbar button {
+  flex: 1;
 }
 
 #viewer-container {
@@ -209,12 +227,16 @@ button.primary:hover {
   margin: 0 0 8px;
 }
 
+.rotation-row-group {
+  margin-bottom: 8px;
+}
+
 .rotation-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.4fr auto;
+  grid-template-columns: 1fr 1fr 1fr auto auto;
   gap: 6px;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .rotation-row select {
@@ -228,12 +250,78 @@ button.primary:hover {
   border: none;
 }
 
+.rotation-row input[type="number"] {
+  width: 3.5em;
+  padding: 4px;
+}
+
 .rotation-row button {
   width: auto;
   padding: 4px 8px;
   margin: 0;
   color: var(--danger);
   border-color: var(--danger);
+}
+
+.rotation-angle-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 2px;
+}
+
+.rotation-angle-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.rotation-angle-row input[type="number"] {
+  width: 4.5em;
+  padding: 4px;
+}
+
+.rotation-angle-row input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#position-controls {
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 6px;
+}
+
+.position-row {
+  display: grid;
+  grid-template-columns: 3.5em 1fr auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.position-row:last-child {
+  margin-bottom: 0;
+}
+
+.position-axis-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.position-row input[type="range"] {
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.position-row input[type="number"] {
+  width: 3.5em;
+  padding: 4px;
 }
 
 .metric-group {
@@ -259,4 +347,28 @@ button.primary:hover {
   font-size: 11px;
   color: var(--muted);
   font-style: italic;
+}
+
+#app-tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 320px;
+  background: #1a1f2b;
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-line;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.1s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+#app-tooltip.visible {
+  opacity: 1;
+  visibility: visible;
 }
