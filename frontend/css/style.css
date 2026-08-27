@@ -285,6 +285,39 @@ button.primary:hover {
   cursor: not-allowed;
 }
 
+.rotation-dial {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel-bg, #1e1e1e);
+  cursor: grab;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+.rotation-dial:active {
+  cursor: grabbing;
+}
+
+.rotation-dial-knob {
+  position: absolute;
+  top: 1px;
+  left: 50%;
+  width: 2px;
+  height: 8px;
+  margin-left: -1px;
+  background: var(--accent, #4ea1ff);
+  transform-origin: 50% 10px;
+}
+
+.rotation-dial-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 #position-controls {
   max-height: 220px;
   overflow-y: auto;

@@ -3,8 +3,10 @@ import pytest
 from scipy.spatial.distance import pdist
 
 from ndstudio.structures import (
+    clifford_torus,
     cross_polytope,
     hypercube,
+    klein_bottle,
     packing,
     random_cloud,
     root_systems,
@@ -103,3 +105,28 @@ def test_dimension_out_of_range_raises():
         hypercube.generate(20, {})
     with pytest.raises(ValueError):
         root_systems.generate_e(9, {})
+
+
+def test_clifford_torus_lies_on_hypersphere():
+    result = clifford_torus.generate(4, {"resolution_u": 8, "resolution_v": 6, "radius": 2.0})
+    assert result.points.shape == (48, 4)
+    norms = np.linalg.norm(result.points, axis=1)
+    assert np.allclose(norms, 2.0, atol=1e-8)
+    # fully wrapped grid mesh: every vertex has degree 4
+    degree = {}
+    for i, j in result.edges:
+        degree[i] = degree.get(i, 0) + 1
+        degree[j] = degree.get(j, 0) + 1
+    assert all(d == 4 for d in degree.values())
+
+
+def test_klein_bottle_shape_and_open_u_seam():
+    result = klein_bottle.generate(4, {"resolution_u": 8, "resolution_v": 6, "scale": 1.0})
+    assert result.points.shape == (48, 4)
+    # u is not wrapped (open seam), v is -- so interior vertices have degree 4, first/last u-ring only 3
+    degree = {}
+    for i, j in result.edges:
+        degree[i] = degree.get(i, 0) + 1
+        degree[j] = degree.get(j, 0) + 1
+    first_ring_degrees = {degree[i] for i in range(6)}
+    assert first_ring_degrees == {3}

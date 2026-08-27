@@ -4,9 +4,11 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from . import (
+    clifford_torus,
     cross_polytope,
     hypercube,
     hypersphere,
+    klein_bottle,
     packing,
     random_cloud,
     root_systems,
@@ -100,6 +102,26 @@ STRUCTURES: dict[str, dict[str, Any]] = {
             "num_points": {"type": "int", "default": 60, "min": 10, "max": 150},
             "center_index": {"type": "int", "default": 0, "min": 0, "max": 149},
             "seed": _SEED_PARAM,
+        },
+    },
+    "clifford_torus": {
+        "label": "Clifford Torus",
+        "generator": clifford_torus.generate,
+        "params": {
+            "dimension": {"type": "choice", "default": 4, "options": [4]},
+            "resolution_u": {"type": "int", "default": 24, "min": 4, "max": 40},
+            "resolution_v": {"type": "int", "default": 24, "min": 4, "max": 40},
+            "radius": {"type": "float", "default": 1.0, "min": 0.1, "max": 10},
+        },
+    },
+    "klein_bottle": {
+        "label": "Klein Bottle",
+        "generator": klein_bottle.generate,
+        "params": {
+            "dimension": {"type": "choice", "default": 4, "options": [4]},
+            "resolution_u": {"type": "int", "default": 24, "min": 4, "max": 40},
+            "resolution_v": {"type": "int", "default": 24, "min": 4, "max": 40},
+            "scale": {"type": "float", "default": 1.0, "min": 0.1, "max": 5},
         },
     },
 }

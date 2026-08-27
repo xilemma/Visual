@@ -210,6 +210,11 @@ Every time you want to use the app, run:
 .venv\Scripts\python run.py
 ```
 
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python run.py
+
+
 You should see output ending in:
 
 ```

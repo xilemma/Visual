@@ -187,7 +187,7 @@ export class RotationPanel {
       speed.step = "0.05";
       speed.value = String(row.speed);
       speed.dataset.tooltip =
-        "Angular speed in radians/second, added to this row's angle every frame while playing. Negative reverses direction; 0 freezes just this row at whatever angle it currently shows.\n\nMultiple rows compose in order, every frame, into one compound rotation. The Pause button above freezes/resumes every row at its current angle -- use Reset rotation to snap back to angle 0 instead.";
+        "Angular speed in radians/second, added to this row's angle every frame while playing. Negative reverses direction; 0 freezes just this row at whatever angle it currently shows. Double-click to reset to 0.\n\nMultiple rows compose in order, every frame, into one compound rotation. The Pause button above freezes/resumes every row at its current angle -- use Reset rotation to snap back to angle 0 instead.";
 
       const speedNumber = document.createElement("input");
       speedNumber.type = "number";
@@ -214,6 +214,13 @@ export class RotationPanel {
         row.speed = clamped;
         speedNumber.value = String(clamped);
         speed.value = String(clamped);
+        this._emit();
+      });
+      // Same double-click-to-reset convention as the angle dial.
+      speed.addEventListener("dblclick", () => {
+        row.speed = 0;
+        speed.value = "0";
+        speedNumber.value = "0";
         this._emit();
       });
 
@@ -253,23 +260,74 @@ export class RotationPanel {
       angleUnit.className = "rotation-angle-label";
       angleUnit.textContent = "\u00b0";
 
-      const applyAngle = () => {
+      const dial = document.createElement("div");
+      dial.className = "rotation-dial";
+      if (!this.paused) dial.classList.add("rotation-dial-disabled");
+      dial.dataset.tooltip = this.paused
+        ? "Drag to set this row's angle directly, or double-click to reset it to 0\u00b0. Only works while paused."
+        : "Only draggable while paused (click Pause above).";
+
+      const dialKnob = document.createElement("div");
+      dialKnob.className = "rotation-dial-knob";
+      dial.appendChild(dialKnob);
+
+      // Shared normalize+apply path used by both the number input and the dial drag,
+      // so both stay in sync and always go through the same paused-only onAngleSet call.
+      const setAngleDeg = (val) => {
+        let norm = val % 360;
+        if (norm < 0) norm += 360;
+        row.angleDeg = norm;
+        angle.value = String(norm);
+        dialKnob.style.transform = `rotate(${norm}deg)`;
+        if (this.onAngleSet) this.onAngleSet(row.id, (norm * Math.PI) / 180);
+      };
+      dialKnob.style.transform = `rotate(${((row.angleDeg % 360) + 360) % 360}deg)`;
+
+      // "input" fires per keystroke while typing -- accept it raw so typing "37" mid-entry
+      // isn't clobbered by normalization. Native number inputs fire "change" (not "input")
+      // for spinner-arrow clicks, and also on blur/Enter after an edit -- normalize there,
+      // so arrow-clicks wrap immediately like the dial, and typed values wrap once committed.
+      angle.addEventListener("input", () => {
         const val = parseFloat(angle.value);
         if (Number.isNaN(val)) return; // let them keep typing, e.g. a lone "-"
         row.angleDeg = val;
+        dialKnob.style.transform = `rotate(${val}deg)`;
         if (this.onAngleSet) this.onAngleSet(row.id, (val * Math.PI) / 180);
+      });
+      angle.addEventListener("change", () => {
+        setAngleDeg(parseFloat(angle.value) || 0);
+      });
+
+      let dialCenter = null;
+      dial.addEventListener("pointerdown", (ev) => {
+        if (!this.paused) return;
+        dial.setPointerCapture(ev.pointerId);
+        const rect = dial.getBoundingClientRect();
+        dialCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      });
+      dial.addEventListener("pointermove", (ev) => {
+        if (!this.paused || !dialCenter) return;
+        const dx = ev.clientX - dialCenter.x;
+        const dy = ev.clientY - dialCenter.y;
+        const deg = (Math.atan2(dx, -dy) * 180) / Math.PI;
+        setAngleDeg(deg);
+      });
+      const endDrag = (ev) => {
+        if (dial.hasPointerCapture(ev.pointerId)) dial.releasePointerCapture(ev.pointerId);
+        dialCenter = null;
       };
-      angle.addEventListener("input", applyAngle);
-      angle.addEventListener("blur", () => {
-        const val = parseFloat(angle.value) || 0;
-        row.angleDeg = val;
-        angle.value = String(val);
-        if (this.onAngleSet) this.onAngleSet(row.id, (val * Math.PI) / 180);
+      dial.addEventListener("pointerup", endDrag);
+      dial.addEventListener("pointercancel", endDrag);
+      // Canonical slider/knob convention: double-click resets just this row to 0.
+      dial.addEventListener("dblclick", () => {
+        if (!this.paused) return;
+        setAngleDeg(0);
       });
 
       angleRow.appendChild(angleLabel);
       angleRow.appendChild(angle);
       angleRow.appendChild(angleUnit);
+      angleRow.appendChild(dial);
 
       groupEl.appendChild(rowEl);
       groupEl.appendChild(angleRow);
