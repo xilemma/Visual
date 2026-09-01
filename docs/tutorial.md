@@ -427,9 +427,10 @@ pairs are not duplicated: direction comes from the sign of Angle and Speed.
 - Each row begins with a **Transform type**. Plane rotation uses one
   canonical unordered plane selector; Axis scale uses one axis selector.
   Targets already used by another row of the same type are omitted.
-- Every row has its own **Speed** in radians per second. Negative reverses
-  direction or phase, and 0 holds that row at its current state. Drag the
-  slider or type an exact value; double-clicking the slider sets Speed to 0.
+- Every row has its own **Speed** in whole degrees per second. Negative reverses
+  direction or phase, and 0 holds that row at its current state. The precise
+  slider covers `-30…30°/s`; the number box accepts `-120…120°/s` and rounds to
+  a whole number on blur. Double-clicking the slider sets Speed to 0.
 - You can stack up to **one row per dimension** at once (4 rows for a 4-D
   structure, up to 12 for a 12-D one); they combine into one compound
   transformation.
@@ -588,10 +589,10 @@ Do these in order — each one builds on an idea from the previous one.
 1. With the hypercube still showing, go to **N-D transforms**. There's
    already one Plane rotation row, defaulted to `axes 0–1` — the app added it at page
    load, before you ever switched structures.
-2. Drag its speed slider to about 1.0 and watch it spin.
+2. Drag its speed slider to about `12°/s` and watch it spin.
 3. Click **+ Add transform**. The new Plane rotation uses the first
    canonical plane not already active, normally `axes 0–2`. Set its speed
-   to about -0.7. The two distinct plane rotations now compose in row order;
+   to about `-7°/s`. The two distinct plane rotations now compose in row order;
    because they share axis 0, the compound motion differs from two rotations
    acting on disjoint axis pairs.
 4. Click **Pause**. Notice the structure freezes exactly where it was,

@@ -405,7 +405,7 @@ button.primary:hover {
 
 .rotation-speed-row {
   display: grid;
-  grid-template-columns: 3.5em minmax(0, 1fr) auto;
+  grid-template-columns: 3.5em minmax(0, 1fr) 4.1em auto;
   gap: 6px;
   align-items: center;
   margin-bottom: 4px;
@@ -422,6 +422,12 @@ button.primary:hover {
 .rotation-speed-row input[type="number"] {
   width: 4.1em;
   padding: 4px;
+}
+
+.rotation-speed-unit {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .rotation-row button {

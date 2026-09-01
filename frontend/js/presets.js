@@ -5,6 +5,7 @@ export const SESSION_STORAGE_KEY = "nd-projection-studio.session.v1";
 const PRESET_FORMAT = "nd-projection-studio-preset";
 const BUNDLE_FORMAT = "nd-projection-studio-presets";
 const SESSION_FORMAT = "nd-projection-studio-session";
+const MAX_SPEED_RADIANS_PER_SECOND = (120 * Math.PI) / 180;
 
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -118,8 +119,12 @@ export function validateConfiguration(raw, structuresSchema, projectionsSchema) 
     }
     const speed = Number(row.speed);
     const angleDeg = Number(row.angleDeg);
-    if (!Number.isFinite(speed) || speed < -2 || speed > 2) {
-      throw new Error(`Transform ${index + 1} speed must be between -2 and 2.`);
+    if (
+      !Number.isFinite(speed) ||
+      speed < -MAX_SPEED_RADIANS_PER_SECOND ||
+      speed > MAX_SPEED_RADIANS_PER_SECOND
+    ) {
+      throw new Error(`Transform ${index + 1} speed exceeds the supported ±120°/s range.`);
     }
     if (!Number.isFinite(angleDeg)) throw new Error(`Transform ${index + 1} Angle/Phase is invalid.`);
     return { type: row.type, plane: [i, j], speed, angleDeg };

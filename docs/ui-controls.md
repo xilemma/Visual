@@ -421,15 +421,20 @@ The row is rendered as:
   (`axes 0–1`, `axes 0–2`, …). Reversed pairs never appear, and planes used by
   another row are omitted. Direction is controlled by signed Angle and Speed.
 - For Axis scale, one axis selector. Axes used by another scale row are omitted.
-- A speed `<input type="range">` **and** a paired `<input type="number">`,
-  both range **-2..2**, step 0.05, default **0.05** — radians/second added
-  to that row's own persisted angle every frame while playing, so negative
-  values reverse direction and 0 genuinely freezes that row at whatever
-  angle it currently shows (not just at 0). Dragging the slider updates the
-  number box live; typing in the number box updates the slider, clamped to
-  -2..2 on blur (so you can type values while the slider temporarily shows
-  its clamped equivalent). Double-clicking the slider sets Speed to 0 without
-  changing the current Angle/Phase.
+- A speed `<input type="range">` over **-30..30°/s** and a paired
+  `<input type="number">` over **-120..120°/s**, both step 1 and default
+  **3°/s**. Negative values reverse direction and 0 genuinely freezes that row
+  at its current Angle/Phase. Dragging the slider updates the number box live.
+  Typing a larger value keeps the slider at its nearest soft endpoint while the
+  typed speed remains active; on blur the number is rounded to a whole degree
+  per second and clamped to ±120. Double-clicking the slider sets Speed to 0
+  without changing the current Angle/Phase. The panel converts the displayed
+  degrees per second to radians per second before sending transform state to the
+  Viewer, so the underlying transform math and existing preset representation
+  remain unchanged. When an older preset contains a fractional radian speed,
+  loading rounds it to the nearest whole displayed degree per second so the
+  number box remains authoritative; explicitly saving updates that preset to
+  the normalized rate.
 - A `✕` remove button.
 - A second, smaller line: an **Angle** (plane rotation) or **Phase** (axis
   scale) `<input type="number">` in **degrees**, only enabled while transforms
@@ -470,7 +475,7 @@ discover or construct that encoding themselves.
 - Capped at **one row per current dimension** (`RotationPanel._maxRows`);
   clicks beyond that silently no-op. A 4-D structure still caps at 4 rows
   (unchanged); a 12-D one now allows up to 12.
-- Every new row defaults to Plane rotation, speed 0.05, and the first canonical
+- Every new row defaults to Plane rotation, speed 3°/s, and the first canonical
   plane no other Plane rotation row is using. Changing it to Axis scale selects the
   first axis no other scale row is using. Normal UI operations therefore cannot
   create duplicate or reversed transform targets.
@@ -722,7 +727,7 @@ that?" questions.
 | `add-rotation-btn` | `<button>` | N-D transforms | `click` | `RotationPanel.addRow` | Adds a Plane rotation using the next unused canonical plane, capped at one row per dimension |
 | (per-row) Transform type | `<select>` | N-D transforms | `change` | inline listener (`RotationPanel._render`) | Switches between Plane rotation and Axis scale; assigns the next unused target and preserves Speed/Angle/Phase |
 | (per-row) Plane/Axis target | `<select>` | N-D transforms | `change` | `_planeSelect` / `_scaleAxisSelect` | Chooses a unique canonical plane or unique scale axis |
-| (per-row) Speed | range + number | N-D transforms | `input`/`blur`/double-click | inline listeners | Sets animation speed in -2..2 rad/s; slider double-click sets speed to 0 |
+| (per-row) Speed | range + number + unit | N-D transforms | `input`/`blur`/double-click | inline listeners | Whole degrees/second: slider -30..30, typed range -120..120, default 3; slider double-click sets speed to 0 |
 | `pause-btn` | `<button>` | N-D transforms | `click` | `setPaused` (main.js) | Freezes/resumes every row; live readouts run at 10 Hz while playing and synchronize exactly on pause |
 | `reset-rotation-btn` | `<button>` | N-D transforms | `click` | inline listener | Resets Plane rotation angles to 0 and Axis scale phases to 0 (factor 1×) |
 | (per-row) Angle/Phase + dial | number + dial | N-D transforms | `input`/`change`/pointer drag/double-click | inline listeners (`RotationPanel._render`) | Live 10 Hz readout while playing; manually editable while paused; dial double-click resets that row to 0° |

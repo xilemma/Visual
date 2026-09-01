@@ -96,7 +96,13 @@ export function writeForm(inputs, values) {
   }
 }
 
-const clampSpeed = (v) => Math.min(2, Math.max(-2, v));
+const DEG_TO_RAD = Math.PI / 180;
+const RAD_TO_DEG = 180 / Math.PI;
+const clampSliderSpeedDeg = (v) => Math.min(30, Math.max(-30, v));
+const clampTypedSpeedDeg = (v) => Math.min(120, Math.max(-120, v));
+const displaySpeedDeg = (radiansPerSecond) => Math.round(radiansPerSecond * RAD_TO_DEG);
+const normalizeSpeedRadians = (radiansPerSecond) =>
+  clampTypedSpeedDeg(displaySpeedDeg(radiansPerSecond)) * DEG_TO_RAD;
 
 /** Manages explicit plane-rotation and single-axis-scale transform rows. */
 export class RotationPanel {
@@ -186,7 +192,7 @@ export class RotationPanel {
   addRow() {
     if (this.rows.length >= this._maxRows()) return;
     const [i, j] = this._nextUnusedPlane();
-    this.rows.push({ id: this._nextId++, type: "rotation", plane: [i, j], speed: 0.05, angleDeg: 0 });
+    this.rows.push({ id: this._nextId++, type: "rotation", plane: [i, j], speed: 3 * DEG_TO_RAD, angleDeg: 0 });
     this._render();
     this._emit();
   }
@@ -210,7 +216,7 @@ export class RotationPanel {
       id: this._nextId++,
       type: row.type,
       plane: row.plane.slice(),
-      speed: row.speed,
+      speed: normalizeSpeedRadians(row.speed),
       angleDeg: row.angleDeg,
     }));
     this._render();
@@ -271,41 +277,43 @@ export class RotationPanel {
 
       const speed = document.createElement("input");
       speed.type = "range";
-      speed.min = "-2";
-      speed.max = "2";
-      speed.step = "0.05";
-      speed.value = String(row.speed);
+      speed.min = "-30";
+      speed.max = "30";
+      speed.step = "1";
+      speed.value = String(clampSliderSpeedDeg(displaySpeedDeg(row.speed)));
       speed.dataset.tooltip = isAxisScale
-        ? "Phase speed in radians/second. This makes the selected coordinate repeatedly stretch, collapse, and reflect. Negative reverses the cycle; 0 holds its current scale. Double-click to stop at the current phase."
-        : "Angular speed in radians/second. Negative reverses the rotation; 0 holds its current angle. Double-click to stop at the current angle.";
+        ? "Phase speed in whole degrees/second. The slider covers -30..30; use the number box for speeds up to ±120. Negative reverses the cycle; 0 holds the current scale. Double-click to stop at the current phase."
+        : "Angular speed in whole degrees/second. The slider covers -30..30; use the number box for speeds up to ±120. Negative reverses the rotation; 0 holds the current angle. Double-click to stop at the current angle.";
 
       const speedNumber = document.createElement("input");
       speedNumber.type = "number";
-      speedNumber.min = "-2";
-      speedNumber.max = "2";
-      speedNumber.step = "0.05";
-      speedNumber.value = String(row.speed);
+      speedNumber.min = "-120";
+      speedNumber.max = "120";
+      speedNumber.step = "1";
+      speedNumber.value = String(displaySpeedDeg(row.speed));
       speedNumber.dataset.tooltip = isAxisScale
-        ? "The axis-scale phase speed, typed exactly. Clamped to -2..2 on blur."
-        : "The rotation speed, typed exactly. Clamped to -2..2 on blur.";
+        ? "The axis-scale phase speed in degrees/second. Rounded to a whole number and clamped to -120..120 on blur."
+        : "The rotation speed in degrees/second. Rounded to a whole number and clamped to -120..120 on blur.";
 
       speed.addEventListener("input", () => {
-        row.speed = parseFloat(speed.value);
-        speedNumber.value = String(row.speed);
+        const degreesPerSecond = parseInt(speed.value, 10);
+        row.speed = degreesPerSecond * DEG_TO_RAD;
+        speedNumber.value = String(degreesPerSecond);
         this._emit();
       });
       speedNumber.addEventListener("input", () => {
         const val = parseFloat(speedNumber.value);
         if (Number.isNaN(val)) return; // let them keep typing, e.g. a lone "-"
-        row.speed = val;
-        speed.value = String(clampSpeed(val));
+        const activeSpeed = clampTypedSpeedDeg(val);
+        row.speed = activeSpeed * DEG_TO_RAD;
+        speed.value = String(clampSliderSpeedDeg(activeSpeed));
         this._emit();
       });
       speedNumber.addEventListener("blur", () => {
-        const clamped = clampSpeed(parseFloat(speedNumber.value) || 0);
-        row.speed = clamped;
+        const clamped = clampTypedSpeedDeg(Math.round(parseFloat(speedNumber.value) || 0));
+        row.speed = clamped * DEG_TO_RAD;
         speedNumber.value = String(clamped);
-        speed.value = String(clamped);
+        speed.value = String(clampSliderSpeedDeg(clamped));
         this._emit();
       });
       // Same double-click-to-reset convention as the angle dial.
@@ -337,6 +345,10 @@ export class RotationPanel {
       speedRow.appendChild(speedLabel);
       speedRow.appendChild(speed);
       speedRow.appendChild(speedNumber);
+      const speedUnit = document.createElement("span");
+      speedUnit.className = "rotation-speed-unit";
+      speedUnit.textContent = "°/s";
+      speedRow.appendChild(speedUnit);
 
       const angleRow = document.createElement("div");
       angleRow.className = "rotation-angle-row";
