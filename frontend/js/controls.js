@@ -88,24 +88,55 @@ export function readForm(inputs) {
   return values;
 }
 
+export function writeForm(inputs, values) {
+  for (const [name, input] of Object.entries(inputs)) {
+    if (!(name in values)) continue;
+    if (input.dataset.type === "bool") input.checked = !!values[name];
+    else input.value = String(values[name]);
+  }
+}
+
 const clampSpeed = (v) => Math.min(2, Math.max(-2, v));
 
-/** Manages the list of "rotate plane (i,j) at speed" rows. */
+/** Manages explicit plane-rotation and single-axis-scale transform rows. */
 export class RotationPanel {
   constructor(container, onChange, onAngleSet) {
     this.container = container;
     this.onChange = onChange;
     this.onAngleSet = onAngleSet;
-    this.rows = []; // { id, plane: [i, j], speed: number, angleDeg: number }
+    this.rows = []; // { id, type: "rotation"|"scale", plane: [i, j], speed, angleDeg }
     this.dimension = 4;
     this.paused = false;
     this._nextId = 1;
+    this._liveDisplays = new Map();
   }
 
-  /** The Angle inputs are only editable while paused -- otherwise the animation loop overwrites the angle next frame. */
-  setPaused(paused) {
+  /** Manual phase/angle inputs are only editable while paused. Sync their displays to the live Viewer state on pause. */
+  setPaused(paused, liveAngles = null) {
     this.paused = paused;
+    if (liveAngles) this._storeLiveAngles(liveAngles);
     this._render();
+  }
+
+  /** Refresh readouts without rebuilding controls; intended for the Viewer's throttled 10 Hz snapshots. */
+  updateLiveAngles(liveAngles) {
+    this._storeLiveAngles(liveAngles);
+    for (const row of this.rows) {
+      const display = this._liveDisplays.get(row.id);
+      if (!display) continue;
+      const degrees = row.angleDeg;
+      display.angle.value = String(Math.round(degrees * 10) / 10);
+      display.dialKnob.style.transform = `rotate(${degrees}deg)`;
+      display.updateScaleReadout(degrees);
+    }
+  }
+
+  _storeLiveAngles(liveAngles) {
+    for (const row of this.rows) {
+      if (!liveAngles.has(row.id)) continue;
+      const degrees = (liveAngles.get(row.id) * 180) / Math.PI;
+      row.angleDeg = ((degrees % 360) + 360) % 360;
+    }
   }
 
   setDimension(dimension) {
@@ -123,30 +154,73 @@ export class RotationPanel {
     return this.dimension;
   }
 
-  /** Prefers axes no existing row already uses, so new rows start out fully independent. */
-  _nextUnusedPlane() {
-    const used = new Set(this.rows.flatMap((r) => r.plane));
-    const free = [];
-    for (let a = 0; a < this.dimension; a++) if (!used.has(a)) free.push(a);
-    if (free.length >= 2) return [free[0], free[1]];
-    const i = 0;
-    const j = Math.min(3, this.dimension - 1) || 1;
-    return [i, j === i ? (i + 1) % this.dimension : j];
+  _allPlanes() {
+    const planes = [];
+    for (let i = 0; i < this.dimension; i++) {
+      for (let j = i + 1; j < this.dimension; j++) planes.push([i, j]);
+    }
+    return planes;
+  }
+
+  _usedPlaneKeys(excludeId = null) {
+    return new Set(
+      this.rows
+        .filter((r) => r.id !== excludeId && r.type !== "scale")
+        .map((r) => `${Math.min(...r.plane)}:${Math.max(...r.plane)}`)
+    );
+  }
+
+  _nextUnusedPlane(excludeId = null) {
+    const used = this._usedPlaneKeys(excludeId);
+    return this._allPlanes().find(([i, j]) => !used.has(`${i}:${j}`)) || [0, 1];
+  }
+
+  _nextUnusedScaleAxis(excludeId = null) {
+    const used = new Set(
+      this.rows.filter((r) => r.id !== excludeId && r.type === "scale").map((r) => r.plane[0])
+    );
+    for (let axis = 0; axis < this.dimension; axis++) if (!used.has(axis)) return axis;
+    return 0;
   }
 
   addRow() {
     if (this.rows.length >= this._maxRows()) return;
     const [i, j] = this._nextUnusedPlane();
-    this.rows.push({ id: this._nextId++, plane: [i, j], speed: 0.5, angleDeg: 0 });
+    this.rows.push({ id: this._nextId++, type: "rotation", plane: [i, j], speed: 0.05, angleDeg: 0 });
     this._render();
     this._emit();
   }
 
   getRotations() {
-    return this.rows.map((r) => ({ id: r.id, plane: r.plane, speed: r.speed }));
+    return this.rows.map((r) => ({ id: r.id, type: r.type, plane: r.plane, speed: r.speed }));
   }
 
-  /** Zeroes every row's Angle display, matching Viewer.resetRotations() snapping the real angle back to 0. */
+  getState(liveAngles = null) {
+    if (liveAngles) this._storeLiveAngles(liveAngles);
+    return this.rows.map((row) => ({
+      type: row.type,
+      plane: row.plane.slice(),
+      speed: row.speed,
+      angleDeg: row.angleDeg,
+    }));
+  }
+
+  setState(rows) {
+    this.rows = rows.slice(0, this._maxRows()).map((row) => ({
+      id: this._nextId++,
+      type: row.type,
+      plane: row.plane.slice(),
+      speed: row.speed,
+      angleDeg: row.angleDeg,
+    }));
+    this._render();
+    this._emit();
+    for (const row of this.rows) {
+      if (this.onAngleSet) this.onAngleSet(row.id, (row.angleDeg * Math.PI) / 180);
+    }
+  }
+
+  /** Zeroes every rotation angle / scale phase display, matching Viewer.resetRotations(). */
   resetAngleDisplays() {
     for (const r of this.rows) r.angleDeg = 0;
     this._render();
@@ -154,31 +228,46 @@ export class RotationPanel {
 
   _render() {
     this.container.innerHTML = "";
-    const sameAxisWarning =
-      "Picking the same axis in both dropdowns of a row does not rotate anything -- it produces a pulsing scale artifact on that one coordinate instead.";
+    this._liveDisplays.clear();
     this.rows.forEach((row, idx) => {
       const groupEl = document.createElement("div");
       groupEl.className = "rotation-row-group";
 
+      // Normalize rows created before transform types became explicit.
+      row.type ||= row.plane[0] === row.plane[1] ? "scale" : "rotation";
+      const isAxisScale = row.type === "scale";
+      const kind = document.createElement("div");
+      kind.className = `rotation-kind ${isAxisScale ? "rotation-kind-scale" : ""}`;
+      kind.textContent = isAxisScale ? `Axis ${row.plane[0]} scale` : "Plane rotation";
+      kind.dataset.tooltip = isAxisScale
+        ? "Intentional single-axis scaling. Its phase produces the factor cos(phase) + sin(phase): positive values stretch, 0 collapses this coordinate, and negative values reflect it."
+        : "A genuine rotation in the plane formed by the two different selected axes.";
+
       const rowEl = document.createElement("div");
       rowEl.className = "rotation-row";
 
-      const selectI = this._axisSelect(
-        row.plane[0],
-        (val) => {
-          row.plane[0] = val;
-          this._emit();
-        },
-        `First axis of this rotation plane, paired with the second axis dropdown to its right.\n\n${sameAxisWarning}`
-      );
-      const selectJ = this._axisSelect(
-        row.plane[1],
-        (val) => {
-          row.plane[1] = val;
-          this._emit();
-        },
-        `Second axis of this rotation plane, paired with the first axis dropdown to its left.\n\n${sameAxisWarning}`
-      );
+      const typeSelect = document.createElement("select");
+      typeSelect.dataset.tooltip = "Choose a genuine two-axis plane rotation or an intentional single-axis scale transform.";
+      for (const [value, label] of [["rotation", "Plane rotation"], ["scale", "Axis scale"]]) {
+        const opt = document.createElement("option");
+        opt.value = value;
+        opt.textContent = label;
+        opt.selected = row.type === value;
+        typeSelect.appendChild(opt);
+      }
+      typeSelect.addEventListener("change", () => {
+        row.type = typeSelect.value;
+        if (row.type === "scale") {
+          const axis = this._nextUnusedScaleAxis(row.id);
+          row.plane = [axis, axis];
+        } else {
+          row.plane = this._nextUnusedPlane(row.id);
+        }
+        this._render();
+        this._emit();
+      });
+
+      const targetSelect = isAxisScale ? this._scaleAxisSelect(row) : this._planeSelect(row);
 
       const speed = document.createElement("input");
       speed.type = "range";
@@ -186,8 +275,9 @@ export class RotationPanel {
       speed.max = "2";
       speed.step = "0.05";
       speed.value = String(row.speed);
-      speed.dataset.tooltip =
-        "Angular speed in radians/second, added to this row's angle every frame while playing. Negative reverses direction; 0 freezes just this row at whatever angle it currently shows. Double-click to reset to 0.\n\nMultiple rows compose in order, every frame, into one compound rotation. The Pause button above freezes/resumes every row at its current angle -- use Reset rotation to snap back to angle 0 instead.";
+      speed.dataset.tooltip = isAxisScale
+        ? "Phase speed in radians/second. This makes the selected coordinate repeatedly stretch, collapse, and reflect. Negative reverses the cycle; 0 holds its current scale. Double-click to stop at the current phase."
+        : "Angular speed in radians/second. Negative reverses the rotation; 0 holds its current angle. Double-click to stop at the current angle.";
 
       const speedNumber = document.createElement("input");
       speedNumber.type = "number";
@@ -195,7 +285,9 @@ export class RotationPanel {
       speedNumber.max = "2";
       speedNumber.step = "0.05";
       speedNumber.value = String(row.speed);
-      speedNumber.dataset.tooltip = "Same speed, typed exactly instead of dragged. Clamped to the slider's -2..2 range on blur.";
+      speedNumber.dataset.tooltip = isAxisScale
+        ? "The axis-scale phase speed, typed exactly. Clamped to -2..2 on blur."
+        : "The rotation speed, typed exactly. Clamped to -2..2 on blur.";
 
       speed.addEventListener("input", () => {
         row.speed = parseFloat(speed.value);
@@ -226,29 +318,38 @@ export class RotationPanel {
 
       const remove = document.createElement("button");
       remove.textContent = "\u2715";
-      remove.dataset.tooltip = "Remove this rotation plane row.";
+      remove.dataset.tooltip = "Remove this N-D transform row.";
       remove.addEventListener("click", () => {
         this.rows.splice(idx, 1);
         this._render();
         this._emit();
       });
 
-      rowEl.appendChild(selectI);
-      rowEl.appendChild(selectJ);
-      rowEl.appendChild(speed);
-      rowEl.appendChild(speedNumber);
+      rowEl.appendChild(typeSelect);
+      rowEl.appendChild(targetSelect);
       rowEl.appendChild(remove);
+
+      const speedRow = document.createElement("div");
+      speedRow.className = "rotation-speed-row";
+      const speedLabel = document.createElement("span");
+      speedLabel.className = "rotation-angle-label";
+      speedLabel.textContent = "Speed";
+      speedRow.appendChild(speedLabel);
+      speedRow.appendChild(speed);
+      speedRow.appendChild(speedNumber);
 
       const angleRow = document.createElement("div");
       angleRow.className = "rotation-angle-row";
       // data-tooltip lives on this wrapper, not the input itself -- disabled inputs don't reliably fire hover events.
       angleRow.dataset.tooltip = this.paused
-        ? "Jumps this row straight to an exact angle in degrees, bypassing Speed's gradual accumulation."
-        : "Only editable while paused (click Pause above) -- otherwise the animation loop overwrites it again next frame.";
+        ? isAxisScale
+          ? "Sets the scale oscillator's phase exactly. The resulting factor is cos(phase) + sin(phase)."
+          : "Jumps this plane rotation straight to an exact angle in degrees, bypassing Speed's gradual accumulation."
+        : "Live readout while playing, refreshed 10 times per second. Pause to edit it manually.";
 
       const angleLabel = document.createElement("span");
       angleLabel.className = "rotation-angle-label";
-      angleLabel.textContent = "Angle";
+      angleLabel.textContent = isAxisScale ? "Phase" : "Angle";
 
       const angle = document.createElement("input");
       angle.type = "number";
@@ -264,12 +365,24 @@ export class RotationPanel {
       dial.className = "rotation-dial";
       if (!this.paused) dial.classList.add("rotation-dial-disabled");
       dial.dataset.tooltip = this.paused
-        ? "Drag to set this row's angle directly, or double-click to reset it to 0\u00b0. Only works while paused."
-        : "Only draggable while paused (click Pause above).";
+        ? isAxisScale
+          ? "Drag to set the scale phase directly, or double-click to restore phase 0\u00b0 (scale 1\u00d7)."
+          : "Drag to set this rotation angle directly, or double-click to reset it to 0\u00b0."
+        : "Live phase indicator while playing, refreshed 10 times per second. Pause to drag it manually.";
 
       const dialKnob = document.createElement("div");
       dialKnob.className = "rotation-dial-knob";
       dial.appendChild(dialKnob);
+
+      const scaleReadout = document.createElement("span");
+      scaleReadout.className = "rotation-scale-readout";
+      const updateScaleReadout = (degrees) => {
+        if (!isAxisScale) return;
+        const radians = (degrees * Math.PI) / 180;
+        const factor = Math.cos(radians) + Math.sin(radians);
+        const effect = Math.abs(factor) < 0.0005 ? "collapsed" : factor < 0 ? "reflected" : "scaled";
+        scaleReadout.textContent = `${factor.toFixed(3)}\u00d7 ${effect}`;
+      };
 
       // Shared normalize+apply path used by both the number input and the dial drag,
       // so both stay in sync and always go through the same paused-only onAngleSet call.
@@ -279,9 +392,12 @@ export class RotationPanel {
         row.angleDeg = norm;
         angle.value = String(norm);
         dialKnob.style.transform = `rotate(${norm}deg)`;
+        updateScaleReadout(norm);
         if (this.onAngleSet) this.onAngleSet(row.id, (norm * Math.PI) / 180);
       };
       dialKnob.style.transform = `rotate(${((row.angleDeg % 360) + 360) % 360}deg)`;
+      updateScaleReadout(row.angleDeg);
+      this._liveDisplays.set(row.id, { angle, dialKnob, updateScaleReadout });
 
       // "input" fires per keystroke while typing -- accept it raw so typing "37" mid-entry
       // isn't clobbered by normalization. Native number inputs fire "change" (not "input")
@@ -292,6 +408,7 @@ export class RotationPanel {
         if (Number.isNaN(val)) return; // let them keep typing, e.g. a lone "-"
         row.angleDeg = val;
         dialKnob.style.transform = `rotate(${val}deg)`;
+        updateScaleReadout(val);
         if (this.onAngleSet) this.onAngleSet(row.id, (val * Math.PI) / 180);
       });
       angle.addEventListener("change", () => {
@@ -329,23 +446,58 @@ export class RotationPanel {
       angleRow.appendChild(angleUnit);
       angleRow.appendChild(dial);
 
+      if (isAxisScale) angleRow.appendChild(scaleReadout);
+
+      groupEl.appendChild(kind);
       groupEl.appendChild(rowEl);
+      groupEl.appendChild(speedRow);
       groupEl.appendChild(angleRow);
       this.container.appendChild(groupEl);
     });
   }
 
-  _axisSelect(selected, onChange, title) {
+  _planeSelect(row) {
     const select = document.createElement("select");
-    if (title) select.dataset.tooltip = title;
-    for (let a = 0; a < this.dimension; a++) {
+    select.dataset.tooltip = "An unordered coordinate plane. Reversed duplicates are omitted; direction comes from the sign of Angle and Speed.";
+    const used = this._usedPlaneKeys(row.id);
+    const current = `${Math.min(...row.plane)}:${Math.max(...row.plane)}`;
+    for (const [i, j] of this._allPlanes()) {
+      const key = `${i}:${j}`;
+      if (used.has(key) && key !== current) continue;
       const opt = document.createElement("option");
-      opt.value = String(a);
-      opt.textContent = `axis ${a}`;
-      if (a === selected) opt.selected = true;
+      opt.value = `${i},${j}`;
+      opt.textContent = `axes ${i}\u2013${j}`;
+      opt.selected = key === current;
       select.appendChild(opt);
     }
-    select.addEventListener("change", () => onChange(parseInt(select.value, 10)));
+    select.addEventListener("change", () => {
+      row.plane = select.value.split(",").map((v) => parseInt(v, 10));
+      this._render();
+      this._emit();
+    });
+    return select;
+  }
+
+  _scaleAxisSelect(row) {
+    const select = document.createElement("select");
+    select.dataset.tooltip = "The single coordinate to stretch, collapse, or reflect. Axes already used by another scale row are omitted.";
+    const used = new Set(
+      this.rows.filter((r) => r.id !== row.id && r.type === "scale").map((r) => r.plane[0])
+    );
+    for (let axis = 0; axis < this.dimension; axis++) {
+      if (used.has(axis) && axis !== row.plane[0]) continue;
+      const opt = document.createElement("option");
+      opt.value = String(axis);
+      opt.textContent = `axis ${axis}`;
+      opt.selected = axis === row.plane[0];
+      select.appendChild(opt);
+    }
+    select.addEventListener("change", () => {
+      const axis = parseInt(select.value, 10);
+      row.plane = [axis, axis];
+      this._render();
+      this._emit();
+    });
     return select;
   }
 
@@ -374,6 +526,13 @@ export class PositionPanel {
 
   getOffset() {
     return this.offset.slice();
+  }
+
+  setOffset(offset) {
+    this.offset = offset.slice(0, this.dimension);
+    while (this.offset.length < this.dimension) this.offset.push(0);
+    this._render();
+    this._emit();
   }
 
   /** Snaps every axis back to 0 without touching dimension. */

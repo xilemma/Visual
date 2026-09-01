@@ -1,4 +1,4 @@
-"""Klein bottle immersed in R^4 without self-intersection. The familiar "figure-8" glass model
+"""Klein bottle embedded in R^4 without self-intersection. The familiar "figure-8" glass model
 only self-intersects because it has been squeezed down into 3 dimensions; giving the tube's
 cross-section its own extra pair of axes (twisted by half the tube's own angle, as it travels once
 around the loop) removes the self-intersection entirely."""
@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .common import StructureResult, grid_mesh_edges, require_float_range, require_int_range
+from .common import StructureResult, require_float_range, require_int_range, twisted_grid_mesh_edges
 
 
 def generate(dimension: int, params: dict) -> StructureResult:
@@ -28,16 +28,21 @@ def generate(dimension: int, params: dict) -> StructureResult:
     w = minor * np.sin(vv) * np.sin(uu / 2)
     pts = np.stack([x, y, z, w], axis=-1).reshape(-1, 4)
 
-    # v (the tube's own cross-section) closes cleanly every 2*pi. u does not: the half-angle twist
-    # means going once around u flips the sign of (z, w) -- the defining twist of a Klein bottle,
-    # rather than a torus -- so wrapping that seam would require also flipping v there. We leave it
-    # as an open seam instead of modeling that extra identification.
-    edges = grid_mesh_edges(res_u, res_v, wrap_u=False, wrap_v=True)
+    # v closes normally. Across the u boundary, the half-angle reverses (z, w),
+    # so the correct Klein identification is (2*pi, v) ~ (0, -v).
+    edges = twisted_grid_mesh_edges(res_u, res_v)
     labels = np.repeat(np.arange(res_u), res_v).tolist()  # color by u-ring, for visual banding
 
     return StructureResult(
         points=pts,
         edges=edges,
         labels=labels,
-        meta={"resolution_u": res_u, "resolution_v": res_v, "scale": scale, "num_points": pts.shape[0]},
+        meta={
+            "resolution_u": res_u,
+            "resolution_v": res_v,
+            "scale": scale,
+            "num_points": pts.shape[0],
+            "closed": True,
+            "twisted_seam": True,
+        },
     )

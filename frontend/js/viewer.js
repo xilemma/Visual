@@ -47,6 +47,8 @@ export class Viewer {
     this.animating = true;
     this.projectionRecipe = null;
     this._lastFrameTime = null;
+    this._lastTransformStateEmit = null;
+    this._transformStateListener = null;
     this._lastTransformed = [];
     this._lastProjected = [];
 
@@ -93,8 +95,37 @@ export class Viewer {
     this.offset = offset;
   }
 
+  getView() {
+    return {
+      position: this.camera.position.toArray(),
+      target: this.controls.target.toArray(),
+    };
+  }
+
+  setView(view) {
+    if (!view) return;
+    this.camera.position.fromArray(view.position);
+    this.controls.target.fromArray(view.target);
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+  }
+
+  setViewChangeListener(listener) {
+    this.controls.addEventListener("change", listener);
+  }
+
   setAnimating(flag) {
     this.animating = flag;
+  }
+
+  /** Current transform phases keyed by stable row id, used to synchronize manual controls when pausing. */
+  getRotationAngles() {
+    return new Map(this.rotations.map((r) => [r.id, r.angle]));
+  }
+
+  /** Subscribe to lightweight live transform-phase snapshots (emitted at most 10 times/second). */
+  setTransformStateListener(listener) {
+    this._transformStateListener = listener;
   }
 
   /** Snaps every rotation plane back to angle 0 (the just-generated/just-reset pose). */
@@ -129,6 +160,13 @@ export class Viewer {
 
     if (this.animating) {
       for (const r of this.rotations) r.angle += r.speed * dt;
+      if (
+        this._transformStateListener &&
+        (this._lastTransformStateEmit == null || now - this._lastTransformStateEmit >= 100)
+      ) {
+        this._lastTransformStateEmit = now;
+        this._transformStateListener(this.getRotationAngles());
+      }
     }
 
     if (this.basePoints.length && this.projectionRecipe) {

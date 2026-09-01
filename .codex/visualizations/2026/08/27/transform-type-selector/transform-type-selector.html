@@ -1,0 +1,100 @@
+<div id="transform-type-selector-demo">
+  <div class="card">
+    <div class="viz-row">
+      <span id="tts-kind" class="viz-badge">Plane rotation</span>
+      <span id="tts-summary">axes 0–1 · angle 32.4°</span>
+    </div>
+
+    <div class="viz-controls">
+      <label class="form-label" for="tts-type">Transform type
+        <select id="tts-type" class="form-select">
+          <option value="rotation">Plane rotation</option>
+          <option value="scale">Axis scale</option>
+        </select>
+      </label>
+
+      <label id="tts-plane-field" class="form-label" for="tts-plane">Plane
+        <select id="tts-plane" class="form-select">
+          <option>axes 0–1</option>
+          <option>axes 0–2</option>
+          <option>axes 0–3</option>
+          <option>axes 1–2</option>
+          <option>axes 1–3</option>
+          <option>axes 2–3</option>
+        </select>
+      </label>
+
+      <label id="tts-axis-field" class="form-label" for="tts-axis" hidden>Axis
+        <select id="tts-axis" class="form-select">
+          <option>axis 0</option>
+          <option>axis 1</option>
+          <option selected>axis 2</option>
+          <option>axis 3</option>
+        </select>
+      </label>
+
+      <label class="form-label" for="tts-speed">Speed <span class="text-muted">rad/s</span>
+        <input id="tts-speed" class="form-range" type="range" min="-2" max="2" step="0.05" value="0.5" />
+      </label>
+
+      <label class="form-label" for="tts-phase"><span id="tts-phase-label">Angle</span> <span class="text-muted">live</span>
+        <input id="tts-phase" class="form-control" type="number" step="0.1" value="32.4" disabled />
+      </label>
+
+      <button id="tts-pause" class="btn" type="button" aria-pressed="false">Pause to edit</button>
+      <button class="btn btn-ghost" type="button">Remove</button>
+    </div>
+
+    <div id="tts-detail" class="text-small text-muted">Plane choices are unordered: axes 1–0 is represented as axes 0–1. Direction comes from the sign of Angle and Speed.</div>
+  </div>
+</div>
+
+<script>
+  (() => {
+    const root = document.getElementById("transform-type-selector-demo");
+    const type = root.querySelector("#tts-type");
+    const planeField = root.querySelector("#tts-plane-field");
+    const axisField = root.querySelector("#tts-axis-field");
+    const plane = root.querySelector("#tts-plane");
+    const axis = root.querySelector("#tts-axis");
+    const speed = root.querySelector("#tts-speed");
+    const phase = root.querySelector("#tts-phase");
+    const phaseLabel = root.querySelector("#tts-phase-label");
+    const pause = root.querySelector("#tts-pause");
+    const kind = root.querySelector("#tts-kind");
+    const summary = root.querySelector("#tts-summary");
+    const detail = root.querySelector("#tts-detail");
+    let paused = false;
+
+    function update() {
+      const scaling = type.value === "scale";
+      planeField.hidden = scaling;
+      axisField.hidden = !scaling;
+      phaseLabel.textContent = scaling ? "Phase" : "Angle";
+      kind.textContent = scaling ? "Axis scale" : "Plane rotation";
+
+      const degrees = Number(phase.value) || 0;
+      if (scaling) {
+        const factor = Math.cos((degrees * Math.PI) / 180) + Math.sin((degrees * Math.PI) / 180);
+        summary.textContent = `${axis.value} · ${factor.toFixed(3)}×`;
+        detail.textContent = "One axis is selected. Positive factors stretch, zero collapses, and negative factors reflect that coordinate.";
+      } else {
+        summary.textContent = `${plane.value} · angle ${degrees.toFixed(1)}°`;
+        detail.textContent = "Plane choices are unordered: axes 1–0 is represented as axes 0–1. Direction comes from the sign of Angle and Speed.";
+      }
+    }
+
+    type.addEventListener("change", update);
+    plane.addEventListener("change", update);
+    axis.addEventListener("change", update);
+    speed.addEventListener("input", update);
+    phase.addEventListener("input", update);
+    pause.addEventListener("click", () => {
+      paused = !paused;
+      phase.disabled = !paused;
+      pause.setAttribute("aria-pressed", String(paused));
+      pause.textContent = paused ? "Resume animation" : "Pause to edit";
+    });
+    update();
+  })();
+</script>

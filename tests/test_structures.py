@@ -120,13 +120,31 @@ def test_clifford_torus_lies_on_hypersphere():
     assert all(d == 4 for d in degree.values())
 
 
-def test_klein_bottle_shape_and_open_u_seam():
-    result = klein_bottle.generate(4, {"resolution_u": 8, "resolution_v": 6, "scale": 1.0})
-    assert result.points.shape == (48, 4)
-    # u is not wrapped (open seam), v is -- so interior vertices have degree 4, first/last u-ring only 3
+def test_klein_bottle_shape_and_closed_twisted_u_seam():
+    res_u, res_v = 8, 6
+    result = klein_bottle.generate(4, {"resolution_u": res_u, "resolution_v": res_v, "scale": 1.0})
+    assert result.points.shape == (res_u * res_v, 4)
+
+    # A closed quadrilateral grid has four incident edges at every vertex.
     degree = {}
     for i, j in result.edges:
         degree[i] = degree.get(i, 0) + 1
         degree[j] = degree.get(j, 0) + 1
-    first_ring_degrees = {degree[i] for i in range(6)}
-    assert first_ring_degrees == {3}
+    assert len(degree) == res_u * res_v
+    assert set(degree.values()) == {4}
+    assert len(result.edges) == 2 * res_u * res_v
+
+    # The final u-ring joins the first with v reversed, not as an ordinary torus seam.
+    edges = {tuple(sorted(edge)) for edge in result.edges}
+    expected_seam = set()
+    for j in range(res_v):
+        expected = tuple(sorted(((res_u - 1) * res_v + j, (-j) % res_v)))
+        expected_seam.add(expected)
+        assert expected in edges
+    first_ring = set(range(res_v))
+    last_ring = set(range((res_u - 1) * res_v, res_u * res_v))
+    actual_seam = {edge for edge in edges if set(edge) & first_ring and set(edge) & last_ring}
+    assert actual_seam == expected_seam
+
+    assert result.meta["closed"] is True
+    assert result.meta["twisted_seam"] is True

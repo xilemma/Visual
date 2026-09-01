@@ -68,3 +68,20 @@ def grid_mesh_edges(
             elif wrap_v:
                 edges.add((min(a, idx(i, 0)), max(a, idx(i, 0))))
     return sorted(edges)
+
+
+def twisted_grid_mesh_edges(res_u: int, res_v: int) -> list[tuple[int, int]]:
+    """Edges for a closed Klein-bottle parameter grid.
+
+    The v direction wraps normally. The u seam uses the Klein identification
+    ``(2*pi, v) ~ (0, -v)``, so vertex ``(res_u-1, j)`` connects to
+    ``(0, -j mod res_v)`` rather than directly back to ``(0, j)``.
+    """
+    edges = set(grid_mesh_edges(res_u, res_v, wrap_u=False, wrap_v=True))
+
+    for j in range(res_v):
+        last_ring = (res_u - 1) * res_v + j
+        reversed_first_ring = (-j) % res_v
+        edges.add((min(last_ring, reversed_first_ring), max(last_ring, reversed_first_ring)))
+
+    return sorted(edges)

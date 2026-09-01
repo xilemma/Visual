@@ -5,6 +5,16 @@
 export function rotatePlane(points, i, j, theta) {
   const c = Math.cos(theta);
   const s = Math.sin(theta);
+  // A repeated axis is an intentional dimension probe rather than a plane rotation.
+  // It oscillates that coordinate through stretch, collapse, and reflection.
+  if (i === j) {
+    const factor = c + s;
+    return points.map((row) => {
+      const copy = row.slice();
+      copy[i] = row[i] * factor;
+      return copy;
+    });
+  }
   const out = new Array(points.length);
   for (let p = 0; p < points.length; p++) {
     const row = points[p];

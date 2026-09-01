@@ -8,16 +8,18 @@ event-by-event reference for [frontend/index.html](../frontend/index.html),
 [frontend/js/main.js](../frontend/js/main.js),
 [frontend/js/controls.js](../frontend/js/controls.js),
 [frontend/js/viewer.js](../frontend/js/viewer.js) and
-[frontend/js/mathnd.js](../frontend/js/mathnd.js).
+[frontend/js/mathnd.js](../frontend/js/mathnd.js), plus the versioned storage
+format in [frontend/js/presets.js](../frontend/js/presets.js).
 
 ## Contents
 
 - [Layout map](#layout-map)
 - [Header](#header)
+- [Presets](#presets)
 - [Structure panel](#structure-panel)
 - [Viewer](#viewer)
 - [Projection panel](#projection-panel)
-- [Rotation planes](#rotation-planes)
+- [N-D transforms](#n-d-transforms)
 - [Position](#position)
 - [Leakage metrics](#leakage-metrics)
 - [Cross-control interrelationships (read this)](#cross-control-interrelationships-read-this)
@@ -30,20 +32,20 @@ Nothing lives outside these four regions.
 
 ```mermaid
 flowchart TB
-    Header["App header<br/>title + dimension-badge (#current-dimension)"]
+    Header["App header<br/>title + presets + dimension badge"]
     subgraph Layout["#main-layout (grid: 280px | 1fr | 300px)"]
         direction LR
         Structure["Structure panel<br/>#structure-panel"]
         Viewer["Viewer<br/>#viewer-container / #viewer-canvas"]
-        Projection["Projection panel<br/>#projection-panel<br/>(Projection + Rotation planes + Position + Leakage metrics)"]
+        Projection["Projection panel<br/>#projection-panel<br/>(Projection + N-D transforms + Position + Leakage metrics)"]
     end
     Header --- Layout
     Structure -- "Generate" --> Viewer
-    Projection -- "Apply Projection / rotation / position / Pause / Reset" --> Viewer
+    Projection -- "Apply Projection / N-D transforms / position / Pause / Reset" --> Viewer
     Viewer -- "live snapshot" --> Projection
 ```
 
-Note that **"Projection"**, **"Rotation planes"**, **"Position"**, and
+Note that **"Projection"**, **"N-D transforms"**, **"Position"**, and
 **"Leakage metrics"** are four visually separate `<h2>` sections but are
 all one `<aside>` / one JS module scope (`main.js`) — they share state
 (`currentDimension`, `viewer`) freely, which is why the interrelationships
@@ -54,12 +56,99 @@ below cross section boundaries so often.
 | Control | Element | Behavior |
 |---|---|---|
 | Title | `<h1>` | Static text. |
-| Dimension badge | `#dimension-badge` / `#current-dimension` | Read-only. Set exactly once per successful **Generate**, from the server's `GenerateResponse.dimension` (the actual column count of the returned point array — the authoritative value, not just an echo of whatever the Structure panel's `dimension` field said). Nothing else in the UI writes to it, and it does not update live during rotation/projection. |
+| Named preset | `#preset-select` | Selects and immediately loads a browser-local named preset; `Current session` detaches the working state from any name without changing the scene. |
+| Save / Save as | `#preset-save-btn` / `#preset-save-as-btn` | Updates the selected preset or opens the naming dialog to create a separate one. |
+| More actions | `#preset-menu` | Rename, Duplicate, Delete, Export selected, Export all, and Import. |
+| Dimension badge | `#dimension-badge` / `#current-dimension` | Read-only. Set exactly once per successful **Generate**, from the server's `GenerateResponse.dimension` (the actual column count of the returned point array — the authoritative value, not just an echo of whatever the Structure panel's `dimension` field said). Nothing else in the UI writes to it, and it does not update during transforms or projection changes. |
 
 `currentDimension` (the JS variable behind the badge) is the single source
-of truth used to clamp the Rotation planes' axis choices and the
+of truth used to clamp the N-D transform targets and the
 Projection panel's axis-type fields (see
 [Cross-control interrelationships](#cross-control-interrelationships-read-this)).
+
+## Presets
+
+The centered header toolbar manages complete named configurations entirely in
+the browser. Named presets are stored as one versioned JSON bundle under:
+
+```text
+nd-projection-studio.presets.v1
+```
+
+The automatically restored working state uses a separate key:
+
+```text
+nd-projection-studio.session.v1
+```
+
+Both are `localStorage` entries scoped to the exact browser origin and profile.
+They are not files in the project directory, and `127.0.0.1:8000` does not share
+them with `localhost:8000`.
+
+### Saved configuration
+
+`captureConfiguration()` records:
+
+- Structure type and every current Structure field, including random seeds.
+- Projection method and every current Projection field, including a custom
+  matrix.
+- Transform rows in order: type, canonical target, Speed, and the Viewer's exact
+  live Angle/Phase at capture time.
+- The complete Position vector.
+- Orbit camera position and target.
+- The current play/pause flag. A load nevertheless opens paused intentionally,
+  preserving the saved pose until the user chooses Resume.
+
+Generated point arrays, projection recipes, metrics, and rendered geometry are
+not stored. Loading regenerates them from the parameters and seeds.
+
+### Select, Save, and Save as
+
+- `#preset-select` contains `Current session` plus every named preset. Selecting
+  a name loads it immediately. Selecting `Current session` only clears the
+  active name; it does not reset or replace the current scene.
+- `#preset-save-btn` updates the selected preset's configuration and `modified`
+  timestamp. With `Current session` selected it behaves like Save as.
+- `#preset-save-as-btn` opens `#preset-name-dialog`, defaulting to `Untitled
+  preset` or a unique copy name. Names are required, limited to 80 characters,
+  and compared case-insensitively. Replacing an existing name requires
+  confirmation.
+- A `•` appended to the selected option means the current configuration differs
+  from its named save. Play/pause alone is ignored for this comparison because
+  every load deliberately pauses.
+
+Preset loading is atomic with respect to expected failures: the app validates
+the schema, requests both the generated structure and projection recipe, and
+only then replaces the controls and visible scene. A validation, generation, or
+projection error therefore leaves the previous scene intact. Successful loads
+restore the ordered transforms, exact phases, Position, and camera view, clear
+old metrics, and display the scene paused.
+
+### More menu, import, and export
+
+`#preset-menu` provides:
+
+- **Rename** — changes only the label and modified timestamp; duplicate names
+  are rejected.
+- **Duplicate** — creates a new stable ID and timestamps with a suggested unique
+  `copy` name.
+- **Delete** — confirms first, removes the named record, and leaves the current
+  scene as an unnamed Current session.
+- **Export selected…** — downloads one indented, human-readable
+  `<slug>.ndstudio.json` document.
+- **Export all…** — downloads `ndstudio-presets.ndstudio.json`, containing the
+  complete versioned collection.
+- **Import…** — accepts either exported form up to 1 MB, validates every
+  configuration against the current Structure and Projection registries, and
+  offers Replace, Keep both, or Cancel import for each name conflict. Keep both
+  assigns a unique name and new ID.
+
+The session snapshot is written at most once per second during valid control,
+animation-phase, Position, or camera changes, and once more during normal page
+unload. Incomplete transient form edits are skipped, leaving the last valid
+session intact. On startup the app attempts to regenerate that session; if it is
+invalid or no longer compatible, startup falls back to the normal defaults.
+Autosave never modifies a named preset—only an explicit Save does that.
 
 ## Structure panel
 
@@ -110,6 +199,8 @@ Per-structure schema (from
 | `sphere_packing` | Layered Sphere Packing | int, 4–12, default 6 | `num_shells` int 1–8 (3); `points_per_shell` int 4–200 (40); `radius_step` float 0.1–5 (1.0); `seed` int 0–999999 (0) |
 | `simplex` | Regular Simplex | int, 4–12, default 6 | — |
 | `voronoi_neighborhood` | Voronoi Neighborhood | int, **4–8**, default 5 | `num_points` int 10–150 (60); `center_index` int **0–149 (fixed)**, default 0; `seed` int 0–999999 (0) |
+| `clifford_torus` | Clifford Torus | **choice** `4`, default 4 | `resolution_u` int 4–40 (24); `resolution_v` int 4–40 (24); `radius` float 0.1–10 (1.0) |
+| `klein_bottle` | Klein Bottle | **choice** `4`, default 4 | `resolution_u` int 4–40 (24); `resolution_v` int 4–40 (24); `scale` float 0.1–5 (1.0) |
 
 > **Known quirk:** `voronoi_neighborhood`'s `center_index` max is hardcoded
 > to 149 regardless of the `num_points` you actually choose. If you set
@@ -117,9 +208,10 @@ Per-structure schema (from
 > fails server-side with a validation error — the form gives no client-side
 > warning.
 
-`root_system_e` is the only structure whose `dimension` control is a
-dropdown of exactly `{6, 7, 8}` rather than a free 4–12 spinner (E_n root
-systems are only mathematically defined here for those three dimensions).
+`root_system_e` uses a dimension dropdown of `{6, 7, 8}`. Clifford Torus
+and Klein Bottle use a fixed dropdown containing only `4`, because these
+generators are specifically embedded in ambient 4-D. Other structures use
+numeric dimension fields over their documented ranges.
 
 ### Generate button — `#generate-btn`
 
@@ -134,14 +226,15 @@ generation, and the trigger for almost every other panel's refresh.
    - Update `currentDimension` and the header badge from the response's
      `dimension` (not the request's).
    - `viewer.setStructure(points, edges, labels)` — replaces the point
-     cloud, **resets every rotation plane's angle to 0** (see
-     [Rotation planes](#rotation-planes)), and recomputes point colors from
+     cloud and **resets every transform angle/phase to 0** (Axis scales
+     therefore return to factor 1; see
+     [N-D transforms](#n-d-transforms)), and recomputes point colors from
      `labels`.
    - Render `#structure-meta` as `points: N` plus the structure's own
      `meta` dict (see table below).
    - `rotationPanel.setDimension(currentDimension)` — silently drops any
-     rotation-plane row that references an axis ≥ the new dimension, and
-     repopulates every row's axis dropdowns to `0..dimension-1`.
+     transform row that references an axis ≥ the new dimension, and
+     repopulates every row's available target choices.
    - `rebuildProjectionForm()` — **unconditionally resets every Projection
      panel field to its schema default** (see
      [Cross-control interrelationships](#cross-control-interrelationships-read-this)
@@ -166,6 +259,8 @@ generator in [ndstudio/structures/](../ndstudio/structures)):
 | `sphere_packing` | `num_shells`, `points_per_shell`, `packing_radius` |
 | `simplex` | `num_vertices` |
 | `voronoi_neighborhood` | `center_index`, `num_neighbors` |
+| `clifford_torus` | `resolution_u`, `resolution_v`, `radius`, `num_points` |
+| `klein_bottle` | `resolution_u`, `resolution_v`, `scale`, `num_points`, `closed`, `twisted_seam` |
 
 ### Readouts
 
@@ -190,24 +285,25 @@ control ultimately drives.
 `#viewer-hint` is a static label reminding the user of the left three.
 **These camera controls only move the Three.js camera** — they never touch
 the underlying N-D coordinates and are completely independent of the
-Rotation planes controls described below. "Orbiting" looks at the
-structure from a different angle; "rotating" (via the Rotation planes
+N-D transform controls described below. "Orbiting" looks at the
+structure from a different angle; "rotating" (via N-D transforms
 panel) actually spins the N-D point cloud itself before it's projected.
 
 ### Per-frame render pipeline
 
 Every animation frame (`Viewer._loop` in [viewer.js](../frontend/js/viewer.js)):
 
-1. Each rotation row carries its own persisted `angle` (radians) rather
+1. Each transform row carries its own persisted `angle`/phase (radians) rather
    than a value derived from elapsed time. Unless **Pause** is engaged,
    every row's `angle` is incremented by `speed * dt` (`dt` = seconds
    since the previous frame, clamped to 0.25s so a backgrounded/throttled
    tab can't produce one huge jump on return). While paused, `angle` is
    left untouched.
 2. *If* a structure and a projection recipe both exist:
-   `rotated = applyRotations(basePoints, rotations)` — one plane rotation
-   per configured row, each using its own current `angle`, composed in row
-   order (see [mathnd.js](../frontend/js/mathnd.js)).
+   `rotated = applyRotations(basePoints, rotations)` applies every row in
+   order. A Plane rotation mixes its selected coordinates by the usual sine/
+   cosine matrix. An Axis scale multiplies one coordinate by
+   `cos(phase) + sin(phase)` (see [mathnd.js](../frontend/js/mathnd.js)).
 3. `moved = translate(rotated, offset)` — adds the Position panel's fixed
    N-D offset vector to every point, skipped entirely when every axis is
    still 0 (the common case). Unlike rotation, there's no animation here:
@@ -219,16 +315,17 @@ Every animation frame (`Viewer._loop` in [viewer.js](../frontend/js/viewer.js)):
    geometry; point colors were fixed at Generate time (`label % 6` indexes
    a 6-color palette, so with more than 6 labels colors repeat).
 
-Because `angle` is real, persisted state rather than a formula over a
+Because each angle/phase is persisted state rather than a formula over a
 shared clock, **Pause genuinely freezes the current pose and Resume
 continues from it** — no jump, no reset. Editing one row's `plane`/`speed`
 while others keep animating doesn't disturb any row's `angle`, since rows
 are matched across edits by an internal id in `Viewer.setRotations`.
 
-This client-side re-application (rotate → project, every frame, no network
-call) is what keeps rotation smooth; the formulas in `mathnd.js` are
-unit-tested to numerically match the Python reference in
-[ndstudio/projections/methods.py](../ndstudio/projections/methods.py).
+This client-side re-application (transform → translate → project, every
+frame, no network call) keeps animation smooth. Projection formulas in
+`mathnd.js` mirror the Python reference implementations in
+[ndstudio/projections/methods.py](../ndstudio/projections/methods.py); Axis
+scale and Position are intentional client-side transforms.
 
 ## Projection panel
 
@@ -259,12 +356,12 @@ Same schema-driven builder as the structure form. Per-method schema (from
 | `jl` | Random Johnson–Lindenstrauss | `seed` int 0–9999 (0); `orthonormalize` bool (true) |
 | `custom` | User-Defined Matrix | `matrix_json` textarea — must parse to a JSON array of shape exactly `3 × dimension` |
 | `perspective` | Perspective from N-space | `camera_distance` float 1.5–20 (4.0) |
-| `stereographic` | Stereographic | `pole_axis` int **-1**..`dimension-1` (default **-1**, a sentinel meaning "last axis" — this meaning is not explained anywhere in the UI itself); `radius` float 0.1–10 (1.0) |
+| `stereographic` | Stereographic | `pole_axis` int **-1**..`dimension-1` (default **-1**, a sentinel meaning "last axis," also explained by its tooltip); `radius` float 0.1–10 (1.0) |
 
-For `custom`, `rebuildProjectionForm()` fills `matrix_json` with a default
-identity-slice matrix (rows selecting axes 0, 1, 2) sized to the current
-dimension, but **only if the field is currently empty** — see the
-persistence note below.
+For `custom`, `rebuildProjectionForm()` creates a fresh empty textarea and
+then fills it with an identity-slice matrix (rows selecting axes 0, 1, 2)
+sized to the current dimension. Switching methods or clicking Generate
+rebuilds the form, so hand edits do not persist across either action.
 
 ### Apply Projection button — `#apply-projection-btn`
 
@@ -273,17 +370,17 @@ persistence note below.
 1. Clear `#projection-error`.
 2. Read `#projection-params`.
 3. `POST /api/project` with `{method, dimension: currentDimension, points: viewer.basePoints, params}`.
-   **`viewer.basePoints` is the un-rotated point set from the last
-   Generate** — rotation-plane state is never sent here.
+   **`viewer.basePoints` is the untransformed point set from the last
+   Generate** — Plane rotation, Axis scale, and Position state are not sent here.
 4. On success, hand the returned recipe (`{kind: "matrix"|"perspective"|"stereographic", ...}`)
    to `viewer.setProjectionRecipe(recipe)`. The recipe is a *fixed*
    description (a static 3×n matrix + mean, or a couple of scalars) — it is
    **not recomputed per frame**. Concretely: PCA/JL/orthogonal/custom
-   compute their matrix once, from the un-rotated base cloud, at the moment
-   you click Apply Projection; the render loop then rotates the live points
-   first and applies that fixed matrix afterward every frame. Rotating the
-   structure therefore spins it relative to axes that were fixed at Apply
-   time — it does not make PCA "track" the rotation.
+   compute their matrix once, from the untransformed base cloud, at the moment
+   you click Apply Projection; the render loop then transforms the live points
+   first and applies that fixed matrix afterward every frame. Transforming the
+   structure therefore changes it relative to axes that were fixed at Apply
+   time — it does not make PCA "track" the live state.
 5. On failure, the error message goes to `#projection-error` and the
    viewer keeps the previous recipe.
 
@@ -292,74 +389,91 @@ persistence note below.
 `handleGenerate()` always finishes by calling `handleApplyProjection()`
 using whatever method/params are selected *after* `rebuildProjectionForm()`
 has already reset them to defaults. So a fresh structure is always visible
-immediately, using the currently-selected method's **default** parameters
-(custom matrix JSON excepted, since it persists — see below).
+immediately, using the currently selected method's **default** parameters.
 
 ### Readout
 
 - `#projection-error` — cleared at the start of every Apply Projection attempt.
 
-## Rotation planes
+## N-D transforms
 
 Middle part of `#projection-panel` (`#rotation-controls`,
 `#add-rotation-btn`, `#pause-btn`, `#reset-rotation-btn`). Purely a
-client-side visual transform — **rotation state is never sent to the
-backend as parameters**; the only place rotated coordinates ever leave the
+client-side visual transform — **transform state is never sent to the
+backend as parameters**; the only place transformed coordinates ever leave the
 browser is as raw numbers in the Analyze Leakage request (see below).
 
 ### Rows — `#rotation-controls` (dynamic, via `RotationPanel`)
 
-Each row is `{id, plane: [i, j], speed, angleDeg}` rendered as two lines:
+Each row is `{id, type, plane: [i, j], speed, angleDeg}` and begins with an
+explicit Transform type selector:
 
-- Two axis `<select>` dropdowns (`0..dimension-1`), independently choosable
-  for `i` and `j`.
+- **Plane rotation** when `i != j`: a genuine rotation in the selected
+  coordinate plane.
+- **Axis scale** when `i == j`: the selected coordinate is multiplied by
+  `cos(phase) + sin(phase)`. It stretches for positive factors, collapses at
+  zero, and reflects for negative factors.
+
+The row is rendered as:
+
+- A **Transform type** selector: `Plane rotation` or `Axis scale`.
+- For Plane rotation, one selector containing canonical unordered pairs
+  (`axes 0–1`, `axes 0–2`, …). Reversed pairs never appear, and planes used by
+  another row are omitted. Direction is controlled by signed Angle and Speed.
+- For Axis scale, one axis selector. Axes used by another scale row are omitted.
 - A speed `<input type="range">` **and** a paired `<input type="number">`,
-  both range **-2..2**, step 0.05, default **0.5** — radians/second added
+  both range **-2..2**, step 0.05, default **0.05** — radians/second added
   to that row's own persisted angle every frame while playing, so negative
   values reverse direction and 0 genuinely freezes that row at whatever
   angle it currently shows (not just at 0). Dragging the slider updates the
   number box live; typing in the number box updates the slider, clamped to
   -2..2 on blur (so you can type values while the slider temporarily shows
-  its clamped equivalent).
+  its clamped equivalent). Double-clicking the slider sets Speed to 0 without
+  changing the current Angle/Phase.
 - A `✕` remove button.
-- A second, smaller line: an **Angle** `<input type="number">` in
-  **degrees**, only enabled while rotation is paused (`RotationPanel.paused`).
-  On `input`/`blur` it converts to radians and calls
+- A second, smaller line: an **Angle** (plane rotation) or **Phase** (axis
+  scale) `<input type="number">` in **degrees**, only enabled while transforms
+  are paused (`RotationPanel.paused`). Axis-scale rows also show the resulting
+  scale factor and whether the coordinate is scaled, collapsed, or reflected.
+  A small dial mirrors the same value: while paused it can be dragged, and a
+  double-click resets just that row to 0°. On numeric `input`/`change` or dial
+  drag, the panel converts degrees to radians and calls
   `viewer.setRotationAngle(id, radians)` directly — a one-shot override of
   that row's live `angle`, bypassing `Viewer.setRotations`'s
-  angle-preserving merge entirely. It's write-only (no live readout while
-  playing): `angleDeg` is UI-only state on the row object, redrawn from
-  whatever was last typed, not polled back from `Viewer`.
+  angle-preserving merge entirely. While playing, the Viewer publishes a
+  lightweight phase snapshot at most 10 times per second; the panel updates
+  the disabled number fields, dial positions, and axis-scale factors without
+  rebuilding the controls. When Pause is clicked, the panel synchronizes once
+  more before enabling manual editing, so the displayed state remains
+  authoritative across the play/pause transition.
 
 The `id` is assigned once per row (in `RotationPanel.addRow`) and is what
 lets `Viewer.setRotations` preserve that row's live `angle` across edits to
 other fields — see [Per-frame render pipeline](#viewer).
 
-Any row change to plane/speed calls `rotationPanel.getRotations()` →
+Any row change to type/target/speed calls `rotationPanel.getRotations()` →
 `viewer.setRotations(rotations)` immediately (no Apply step needed for
-rotation, unlike structures/projections). The Angle field is a deliberate
-exception — it calls `viewer.setRotationAngle` directly instead, since
+transforms, unlike structures/projections). The Angle/Phase controls are a
+deliberate exception — they call `viewer.setRotationAngle` directly, since
 `setRotations`'s merge logic always preserves the previous live angle and
-would otherwise silently discard a typed value.
+would otherwise silently discard a typed value. Changing a row's type or
+target preserves that row's current Angle/Phase and Speed; it changes which
+operation those values drive.
 
-> **Known quirk — same axis twice:** nothing prevents selecting the same
-> axis for both dropdowns in a row. `rotatePlane(points, i, j, theta)` in
-> [mathnd.js](../frontend/js/mathnd.js) writes `copy[i]` then `copy[j]`; if
-> `i === j` the second write clobbers the first, and the net effect on that
-> one coordinate is `x * (sin θ + cos θ)` — a pulsing **scale**, not a
-> rotation. This is a real, reproducible visual artifact, not a hypothetical.
+Internally, Axis scale remains encoded as `[i, i]` for the transform math.
+`rotatePlane(points, i, i, phase)` in [mathnd.js](../frontend/js/mathnd.js)
+yields `x_i * (sin phase + cos phase)`, but the UI no longer asks users to
+discover or construct that encoding themselves.
 
-### Add rotation plane — `#add-rotation-btn`
+### Add transform — `#add-rotation-btn`
 
 - Capped at **one row per current dimension** (`RotationPanel._maxRows`);
   clicks beyond that silently no-op. A 4-D structure still caps at 4 rows
   (unchanged); a 12-D one now allows up to 12.
-- Every new row defaults to speed 0.5 and the **first pair of axes no
-  existing row is already using** (`RotationPanel._nextUnusedPlane`), so
-  stacking rows starts out fully independent of one another. Only once
-  every axis is already claimed by some row does a new row fall back to
-  reusing axes **(0, min(3, dimension-1))**, which may end up duplicating
-  an existing row.
+- Every new row defaults to Plane rotation, speed 0.05, and the first canonical
+  plane no other Plane rotation row is using. Changing it to Axis scale selects the
+  first axis no other scale row is using. Normal UI operations therefore cannot
+  create duplicate or reversed transform targets.
 
 ### Play/Pause button — `#pause-btn` (default label: "⏸ Pause")
 
@@ -371,23 +485,23 @@ would otherwise silently discard a typed value.
   keeps rendering, so the structure holds exactly its current pose (camera
   orbiting via OrbitControls still works normally). Clicking **Resume**
   continues incrementing from that same angle — no jump, no reset.
-- Also calls `rotationPanel.setPaused(rotationsPaused)`, which enables or
-  disables every row's Angle input to match — typing an exact angle only
-  makes sense while the animation loop isn't about to overwrite it.
+- Also calls `rotationPanel.setPaused(rotationsPaused, liveAngles)`, which
+  synchronizes the frozen live phases and enables or disables every row's
+  Angle/Phase input to match.
 
-### Reset rotation button — `#reset-rotation-btn`
+### Reset transforms button — `#reset-rotation-btn`
 
-- `click` calls `viewer.resetRotations()`, setting every row's `angle`
-  back to `0` — the same zero-angle base orientation the structure has
-  right after Generate — regardless of whether Pause is currently engaged.
+- `click` calls `viewer.resetRotations()`, setting every Plane rotation angle
+  and Axis scale phase back to `0` (scale factor 1) regardless of whether
+  Pause is currently engaged.
 - Also calls `rotationPanel.resetAngleDisplays()`, zeroing every row's
-  Angle input so it doesn't keep showing a stale typed value once the real
-  angle has been reset out from under it.
+  Angle/Phase input so it matches the reset state.
 - Generate calls the same reset internally (via `viewer.setStructure`), so
-  a brand-new structure always starts unrotated.
+  a brand-new structure always starts untransformed.
 
 > **Don't confuse the two.** Pause preserves the current pose (Resume
-> continues it); Reset rotation discards it back to angle 0. They're
+> continues it); Reset transforms discards rotations and scales back to their
+> neutral phases. They're
 > deliberately separate buttons — see also the cross-control note below.
 
 ### Dimension coupling
@@ -397,7 +511,7 @@ would otherwise silently discard a typed value.
 
 - Drops any row whose `plane[0]` or `plane[1]` is ≥ the new dimension,
   with no warning.
-- Repopulates every remaining row's two axis dropdowns to `0..dimension-1`.
+- Repopulates every remaining row's canonical plane or axis selector.
 - Zeroes every surviving row's `angleDeg` display, matching the real
   `angle` also being reset to 0 by Generate's call to
   `viewer.setStructure` → `resetRotations`.
@@ -408,11 +522,11 @@ response carries the authoritative new dimension.
 
 ## Position
 
-Between Rotation planes and Leakage metrics in `#projection-panel`
+Between N-D transforms and Leakage metrics in `#projection-panel`
 (`#position-controls`, `#reset-position-btn`). Shifts the N-D structure by
-a fixed vector, applied every frame after rotation and before projection
+a fixed vector, applied every frame after all N-D transforms and before projection
 (see [Per-frame render pipeline](#viewer)) — moving the object, rather
-than spinning it in place. Like Rotation planes, this is purely client-side
+than spinning it in place. Like N-D transforms, this is purely client-side
 and never reaches the server as parameters; only the resulting coordinates
 do, via Analyze Leakage.
 
@@ -435,7 +549,7 @@ planes. Each row is:
 
 Any row change calls `positionPanel.getOffset()` →
 `viewer.setOffset(offset)` immediately (no Apply step needed, same as
-Rotation planes).
+N-D transforms).
 
 ### Reset position — `#reset-position-btn`
 
@@ -448,15 +562,14 @@ offset without a full Generate — see Dimension coupling below.
 `positionPanel.setDimension(dimension)` is called both at startup and from
 `handleGenerate()`, right alongside `rotationPanel.setDimension`. It always
 **rebuilds the offset as a fresh all-zero vector** of the new length and
-re-renders — so, unlike rotation angles (which persist in `Viewer` across
-a Generate until a rotation-panel row is actually removed), **the position
-offset always resets to 0 on every Generate**, whether or not the
-dimension actually changed.
+re-renders. The Position offset and every transform Angle/Phase therefore
+reset on each successful Generate, whether or not the dimension changed;
+the transform rows themselves and any still-valid targets remain configured.
 
 ### Interaction with Leakage metrics and non-linear projections
 
 The offset is included in whatever `Viewer._lastTransformed` holds, so
-Analyze Leakage sees it exactly like a live rotation. For the four
+Analyze Leakage sees it exactly like a live N-D transform. For the four
 matrix-based projection methods (Orthogonal, PCA, JL, User-Defined
 Matrix), a uniform N-D translation produces a uniform 3D shift and every
 Leakage metric is unchanged, since all five are built from relative
@@ -476,9 +589,9 @@ Bottom part of `#projection-panel` (`#analyze-btn`, `#metrics-readout`).
 
 1. Clear `#metrics-readout`.
 2. `viewer.getSnapshotForMetrics()` returns `{pointsNd, points3d}` = the
-   **rotated and translated** N-D points and their projected 3D
+   **transformed and positioned** N-D points and their projected 3D
    counterparts from the *most recently rendered animation frame* — not a
-   fresh recompute, and not necessarily the un-rotated, un-translated base
+   fresh recompute, and not necessarily the untransformed, unpositioned base
    points.
 3. If either array is empty (no structure generated, or no projection
    applied yet), throws a "Generate a structure and apply a projection
@@ -486,8 +599,8 @@ Bottom part of `#projection-panel` (`#analyze-btn`, `#metrics-readout`).
 4. Otherwise `POST /api/metrics` with `{points_nd, points_3d, options: {}}`
    (always empty options — see below) and renders the result.
 
-> **Non-reproducible while animating.** If rotation is playing and any row
-> has nonzero speed, each Analyze click captures whatever rotation angle
+> **Non-reproducible while animating.** If transforms are playing and any row
+> has nonzero speed, each Analyze click captures whatever Angle/Phase
 > happened to be rendered at that instant, so results will differ between
 > clicks. Click **Pause** first for a reproducible reading — it freezes
 > every row's current angle without touching its `speed`, so **Resume**
@@ -535,60 +648,68 @@ that?" questions.
    is called unconditionally at the end of every `handleGenerate()`. If you
    set `camera_distance` to 10 for Perspective, then click Generate again
    (e.g. just to get a new random seed), `camera_distance` silently goes
-   back to 4.0. **Exception:** the `custom` method's `matrix_json` textarea
-   is only refilled when it is empty, so hand-edited matrices survive
-   repeated Generate clicks (they may end up the wrong shape for a new
-   dimension, in which case the next Apply Projection fails with a clear
-   shape-mismatch error).
+   back to 4.0. A User-Defined Matrix is also rebuilt as a fresh identity
+   slice sized to the current dimension; hand edits do not survive Generate.
 2. **Structure parameters, by contrast, are not reset by Generate.**
    `handleGenerate()` never calls `rebuildStructureForm()`; your typed
    values stay in the fields across repeated Generate clicks. They're only
    discarded if you switch the Structure Type select (which necessarily
    rebuilds the whole params list for the new type).
-3. **Apply Projection always uses the un-rotated base points**, regardless
-   of the current rotation angle or whether it's playing or paused.
-   Rotation is applied *after* the fixed projection recipe's basis is
+3. **Apply Projection always uses the untransformed base points**, regardless
+   of the current Angle/Phase, Position, or play/pause state. N-D transforms
+   are applied *after* the fixed projection recipe's basis is
    chosen, every frame, in the render loop — so PCA/JL bases do not "chase"
-   the rotating structure.
-4. **Analyze Leakage uses whatever the render loop last drew** (rotated,
-   if animating), not the base points. This is the opposite input to what
+   the transforming structure.
+4. **Analyze Leakage uses whatever the render loop last drew** (including
+   Plane rotations, Axis scales, and Position), not the base points. This is
+   the opposite input to what
    Apply Projection uses, and is the main source of non-reproducible
    metrics runs.
-5. **Rotation-plane settings never reach the backend as parameters** — they
+5. **N-D transform settings never reach the backend as parameters** — they
    only affect what's rendered client-side, and indirectly, the raw
    coordinate arrays sent by Analyze Leakage. The backend has no concept
-   of "rotation planes."
-6. **The dimension badge, rotation-plane axis ranges, and projection
+   of transform rows; it receives only the resulting coordinate arrays.
+6. **The dimension badge, transform targets, and projection
    axis-field clamps all update only after a successful Generate**, from
    the server's returned dimension — not from merely typing a new
    `dimension` value into the Structure panel before clicking Generate.
-7. **Pause freezes the current pose; Reset rotation discards it back to
-   angle 0.** Two separate buttons on purpose; see
-   [Rotation planes](#rotation-planes).
-8. Selecting the **same axis twice** in a rotation row silently produces a
-   scale-pulse artifact instead of a rotation; see
-   [Rotation planes](#rotation-planes).
+7. **Pause freezes the current pose; Reset transforms discards it back to
+   Plane rotation angle 0 and Axis scale phase 0.** Two separate buttons on purpose;
+   see [N-D transforms](#n-d-transforms).
+8. **Transform type is explicit.** Plane rotation exposes a canonical unordered
+   plane; Axis scale exposes one axis and its scale factor. Duplicate and
+   reversed targets are omitted; see [N-D transforms](#n-d-transforms).
 9. `voronoi_neighborhood`'s `center_index` range (0–149) is fixed and not
    narrowed to the currently chosen `num_points`; picking an index beyond
    your point count only fails once you click Generate.
 10. Numeric field `min`/`max` are spinner hints only — manual keyboard
     entry outside that range is not blocked client-side; it surfaces as a
     server-side validation error in the panel's error readout.
-11. **Position resets to 0 on every Generate, unconditionally** — same
-    "authoritative dimension drives a fresh sub-state" pattern as item 6,
-    but stronger: rotation angles persist until a row is removed, while
-    the position offset is rebuilt from scratch every time
-    `positionPanel.setDimension` runs, which is every Generate. Use
-    **Reset position** to zero it out manually without a full Generate;
+11. **Position and all transform phases reset on every successful Generate.**
+    The Position vector is rebuilt from scratch; the existing transform rows
+    remain when their targets fit the new dimension, but their Angle/Phase is
+    reset to 0. Use **Reset position** to zero only Position without a full Generate;
     see [Position](#position).
+12. **Preset load is a regenerate-and-apply operation, not a restoration of
+    cached vertices.** It validates and obtains both server results before
+    committing the UI, then restores client-side transforms, Position, and view.
+    The result always opens paused. See [Presets](#presets).
 
 ## Full control reference table
 
 | Element id | Type | Location | Fires on | Handler | Primary effect |
 |---|---|---|---|---|---|
+| `preset-select` | `<select>` | Header | `change` | `loadPresetById` | Atomically regenerates and loads a named preset paused; blank selects Current session without changing the scene |
+| `preset-save-btn` | `<button>` | Header | `click` | `saveCurrentPreset` | Updates selected named preset or asks for a name |
+| `preset-save-as-btn` | `<button>` | Header | `click` | `savePresetAs` | Creates a separately named preset from the exact current configuration |
+| `preset-menu` | `<details>` | Header | menu clicks | preset action handlers | Rename, duplicate, delete, export selected/all, or import |
+| `preset-file-input` | hidden file input | Header | `change` | `importPresetFile` | Validates and imports a single preset or bundle up to 1 MB |
+| `preset-name-dialog` | `<dialog>` | Overlay | submit/cancel | `askPresetName` | Collects required names for Save as, Rename, and Duplicate |
+| `preset-conflict-dialog` | `<dialog>` | Overlay | button | `askImportConflict` | Resolves import name conflicts with Replace, Keep both, or Cancel import |
+| `preset-status` | live status | Header | n/a | `setPresetStatus` | Reports save/load/import/export results and errors |
 | `structure-type-select` | `<select>` | Structure panel | `change` | `rebuildStructureForm` | Rebuilds `#structure-params` |
 | `field-*` (structure) | dynamic | `#structure-params` | n/a | read by `handleGenerate` | Request body for `/api/generate` |
-| `generate-btn` | `<button>` | Structure panel | `click` | `handleGenerate` | Full refresh: viewer, meta, rotation dims, projection form + auto-apply |
+| `generate-btn` | `<button>` | Structure panel | `click` | `handleGenerate` | Replaces structure, resets transform phases and Position, rebuilds Projection defaults, then auto-applies |
 | `structure-meta` | readout | Structure panel | n/a | `renderMeta` | Shows point count + structure meta |
 | `structure-error` | readout | Structure panel | n/a | n/a | Shows Generate failures |
 | `viewer-canvas` | `<canvas>` | Viewer | mouse/touch | `OrbitControls` | Orbits/zooms/pans the camera only |
@@ -597,11 +718,14 @@ that?" questions.
 | `field-*` (projection) | dynamic | `#projection-params` | n/a | read by `handleApplyProjection` | Request body for `/api/project` |
 | `apply-projection-btn` | `<button>` | Projection panel | `click` | `handleApplyProjection` | Fetches recipe, calls `viewer.setProjectionRecipe` |
 | `projection-error` | readout | Projection panel | n/a | n/a | Shows Apply Projection failures |
-| `rotation-controls` | dynamic rows | Rotation planes | row edits | `RotationPanel._emit` | `viewer.setRotations` (immediate, no Apply step) |
-| `add-rotation-btn` | `<button>` | Rotation planes | `click` | `RotationPanel.addRow` | Adds a row defaulting to the next unused axis pair, capped at one row per dimension |
-| `pause-btn` | `<button>` | Rotation planes | `click` | `setPaused` (main.js) | `viewer.setAnimating`; toggles Pause/Resume label + `aria-pressed`; freezes/resumes every row's angle in place; enables/disables every row's Angle input |
-| `reset-rotation-btn` | `<button>` | Rotation planes | `click` | inline listener | `viewer.resetRotations`; snaps every row's angle back to 0; also zeroes every row's Angle input display |
-| (per-row) Angle input | dynamic | Rotation planes | `input`/`blur` | inline listener (`RotationPanel._render`) | `viewer.setRotationAngle(id, radians)`; degrees, enabled only while paused |
+| `rotation-controls` | dynamic rows | N-D transforms | row edits | `RotationPanel._emit` | `viewer.setRotations` (immediate, no Apply step) |
+| `add-rotation-btn` | `<button>` | N-D transforms | `click` | `RotationPanel.addRow` | Adds a Plane rotation using the next unused canonical plane, capped at one row per dimension |
+| (per-row) Transform type | `<select>` | N-D transforms | `change` | inline listener (`RotationPanel._render`) | Switches between Plane rotation and Axis scale; assigns the next unused target and preserves Speed/Angle/Phase |
+| (per-row) Plane/Axis target | `<select>` | N-D transforms | `change` | `_planeSelect` / `_scaleAxisSelect` | Chooses a unique canonical plane or unique scale axis |
+| (per-row) Speed | range + number | N-D transforms | `input`/`blur`/double-click | inline listeners | Sets animation speed in -2..2 rad/s; slider double-click sets speed to 0 |
+| `pause-btn` | `<button>` | N-D transforms | `click` | `setPaused` (main.js) | Freezes/resumes every row; live readouts run at 10 Hz while playing and synchronize exactly on pause |
+| `reset-rotation-btn` | `<button>` | N-D transforms | `click` | inline listener | Resets Plane rotation angles to 0 and Axis scale phases to 0 (factor 1×) |
+| (per-row) Angle/Phase + dial | number + dial | N-D transforms | `input`/`change`/pointer drag/double-click | inline listeners (`RotationPanel._render`) | Live 10 Hz readout while playing; manually editable while paused; dial double-click resets that row to 0° |
 | `position-controls` | dynamic rows | Position | row edits | `PositionPanel._emit` | `viewer.setOffset` (immediate, no Apply step) |
 | `reset-position-btn` | `<button>` | Position | `click` | inline listener | `positionPanel.reset()`; re-renders sliders to 0 and calls `viewer.setOffset` |
 | `analyze-btn` | `<button>` | Leakage metrics | `click` | `handleAnalyze` | Fetches metrics from the live render snapshot |

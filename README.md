@@ -7,11 +7,13 @@ the way.
 
 Backend: FastAPI + NumPy/SciPy generates the N-D geometry and projection
 recipes. Frontend: vanilla JS + Three.js (WebGL) renders the live 3D view
-and animates rotations entirely in the browser for smooth 60fps interaction.
+and applies animated plane rotations and axis scales entirely in the browser
+for smooth 60fps interaction.
 
 ## Features
 
 **Structures** (dimension 4–12 unless noted)
+
 - Hypersphere / spherical code (random or repulsion-relaxed)
 - Hypercube
 - Cross-polytope (orthoplex)
@@ -21,8 +23,11 @@ and animates rotations entirely in the browser for smooth 60fps interaction.
 - Layered / nested sphere packings
 - Regular simplex
 - Voronoi neighborhood (dimension 4–8, via Delaunay duality)
+- Clifford torus (a flat torus embedded in 4-D)
+- Klein bottle embedded in 4-D, with its wireframe closed across the twisted seam
 
 **Projections**
+
 - Orthogonal (axis-aligned)
 - Perspective from N-space
 - Stereographic
@@ -30,8 +35,10 @@ and animates rotations entirely in the browser for smooth 60fps interaction.
 - Random Johnson–Lindenstrauss
 - User-defined projection matrix
 - Animated rotation in any coordinate plane (combine with any method above)
+- Explicit Axis scale transforms for stretching, collapsing, or reflecting one coordinate
 
 **Leakage metrics** (the "is this projection lying to you?" panel)
+
 - **Containment** — fraction of points inside a reference container in N-D
   that appear to leak outside it after projection (and vice versa).
 - **Neighborhood inversion** — how much a point's nearest-neighbor set
@@ -43,6 +50,16 @@ and animates rotations entirely in the browser for smooth 60fps interaction.
   N-D and 3D pairwise distances.
 - **Adjacency preservation** — Jaccard overlap of k-NN graphs, plus
   connected-component counts, between N-D and 3D.
+
+**Named presets**
+
+- Save and update complete named configurations in browser-local storage.
+- Restore structure/projection parameters, ordered transforms and live phases,
+  Position, and camera view; preset loads deliberately open paused.
+- Rename, duplicate, delete, export, and import individual presets, or export
+  all presets as one versioned JSON backup.
+- Automatically restore the last valid working session after a refresh without
+  silently overwriting a named preset.
 
 ## Project layout
 
@@ -62,12 +79,12 @@ run.py                     dev server launcher
 
 New to N-dimensional geometry or this app? Start with
 [docs/tutorial.md](docs/tutorial.md) — a beginner-friendly walkthrough that
-explains the concepts (dimensions, projections, rotation planes, position,
+explains the concepts (dimensions, projections, N-D transforms, position,
 leakage metrics) from scratch and guides you through installation and your
 first session, no prior background assumed.
 
 See [docs/ui-controls.md](docs/ui-controls.md) for a full reference of every
-UI control (structure/projection forms, rotation planes, position, leakage metrics)
+UI control (structure/projection forms, N-D transforms, position, leakage metrics)
 and — importantly — how they affect each other (e.g. what Generate resets
 vs. preserves, what Apply Projection vs. Analyze Leakage each operate on,
 and a few non-obvious quirks in the current implementation).
@@ -104,18 +121,18 @@ first time a browser loads the page.
    matrix (orthogonal/PCA/JL/custom, plus a mean to subtract first) or a
    small set of parameters for the nonlinear perspective/stereographic
    formulas.
-3. **Rotate & position**: the browser applies rotation-in-a-coordinate-plane,
-   an optional N-D translation offset, and the projection recipe to every
-   point, every frame, in JavaScript (`frontend/js/mathnd.js`) — no network
-   round trip per frame, so everything stays smooth (rotation pausable at
-   any time via the Pause button, position resettable via Reset position).
-   The rotation and projection formulas are unit-tested against the Python
-   reference implementations in `ndstudio/projections/methods.py` to keep
-   the two in lockstep; translation has no server-side equivalent to check
-   against, since it's a purely client-side convenience.
-4. **Analyze**: clicking "Analyze Leakage" sends the *current* rotated and
+3. **Transform & position**: the browser applies each configured Plane
+   rotation or Axis scale, then an optional N-D translation offset, and then
+   the projection recipe to every point on every frame in
+   `frontend/js/mathnd.js`. Transform animation can be paused without losing
+   the current pose; Angle/Phase readouts update at 10 Hz while playing;
+   Reset transforms returns rotations to angle 0 and scales to phase 0
+   (factor 1).
+4. **Analyze**: clicking "Analyze Leakage" sends the *current* transformed and
    translated N-D points and their live 3D projection back to the server,
    which computes the five leakage metrics authoritatively with SciPy.
+5. **Save or share**: named presets are stored under the browser origin using
+   `localStorage`; JSON export/import supplies a portable filesystem copy.
 
 ## Notes & constraints
 
@@ -128,8 +145,9 @@ first time a browser loads the page.
   server-side regardless of what the client sends (dimension ≤ 12, point
   counts capped, custom matrices parsed with `json.loads` only — never
   `eval` — and checked for shape/finiteness).
+- Clifford torus and Klein bottle are fixed at ambient dimension 4. The
+  Klein bottle wireframe uses `(2π, v) ~ (0, -v)`, so it has no open seam.
 - Leakage metrics are computed on a random subsample (default cap 400
   points) when the point set is larger, for responsiveness; the response
   reports whether subsampling occurred.
 
-  Get-Process -Id 30940 | Select-Object -Property Id,ProcessName,Path

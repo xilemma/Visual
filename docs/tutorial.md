@@ -8,6 +8,7 @@ before it's used. If you already know what a "projection matrix" or a
 every section in order.
 
 Two other docs exist alongside this one, for later:
+
 - [README.md](../README.md) — short feature list and quick-start commands.
 - [docs/ui-controls.md](ui-controls.md) — the exhaustive, control-by-control
   technical reference, including every edge case and quirk. Come back to
@@ -37,8 +38,9 @@ This tutorial is the bridge between "I've never seen this app before" and
   - [Part 4 — Your first five minutes](#part-4--your-first-five-minutes)
   - [Part 5 — Structures explained](#part-5--structures-explained)
   - [Part 6 — Projections explained](#part-6--projections-explained)
-  - [Part 7 — Rotation planes explained](#part-7--rotation-planes-explained)
+  - [Part 7 — N-D transforms explained](#part-7--n-d-transforms-explained)
   - [Part 7b — Position explained](#part-7b--position-explained)
+  - [Part 7c — Saving and loading presets](#part-7c--saving-and-loading-presets)
   - [Part 8 — Leakage metrics explained](#part-8--leakage-metrics-explained)
   - [Part 9 — Guided exercises](#part-9--guided-exercises)
     - [Exercise 1 — Warm up with something you already understand](#exercise-1--warm-up-with-something-you-already-understand)
@@ -133,7 +135,7 @@ for the specific structure and viewpoint on your screen.
 ```mermaid
 flowchart LR
     A["1. Generate<br/>build the N-D shape"] --> B["2. Project<br/>cast its 3-D shadow"]
-    B --> C["3. Rotate & explore<br/>(purely visual, in your browser)"]
+    B --> C["3. Transform & explore<br/>(purely visual, in your browser)"]
     C --> D["4. Analyze Leakage<br/>measure the distortion"]
     D -.->|try a different projection| B
 ```
@@ -210,11 +212,6 @@ Every time you want to use the app, run:
 .venv\Scripts\python run.py
 ```
 
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python run.py
-
-
 You should see output ending in:
 
 ```
@@ -260,7 +257,7 @@ http://127.0.0.1:8000/
 
 You should see a dark-themed page with three columns: a **Structure**
 panel on the left, a black 3-D viewport in the middle, and a **Projection
-/ Rotation planes / Leakage metrics** panel on the right. If the middle
+/ N-D transforms / Leakage metrics** panel on the right. If the middle
 viewport is empty/black, give it a second — it needs that one-time Three.js
 download from the internet.
 
@@ -291,12 +288,12 @@ flowchart TB
         direction LR
         Structure["Left: Structure panel<br/>build the N-D shape"]
         Viewer["Middle: 3-D Viewer<br/>the live shadow"]
-        Projection["Right: Projection / Rotation planes / Leakage metrics"]
+        Projection["Right: Projection / N-D transforms / Leakage metrics"]
     end
     Header --- Layout
 ```
 
-- **Header bar** (top): the app title, and a small **dimension badge**
+- **Header bar** (top): the app title, the named **Preset** controls, and a small **dimension badge**
   (e.g. "dimension: 6") — this is a read-only display of how many
   coordinates each point currently has. It only updates after a
   successful **Generate**.
@@ -307,9 +304,9 @@ flowchart TB
   *viewpoint* — they never touch the underlying N-D coordinates.
 - **Projection panel** (top-right): choose *how* to cast the shadow from
   N-D to 3-D, then click **Apply Projection**.
-- **Rotation planes** (mid-right): make the N-D structure itself tumble,
+- **N-D transforms** (mid-right): rotate coordinate planes or scale one axis,
   purely as a visual, in your browser.
-- **Position** (mid-right, just below Rotation planes): shift the N-D
+- **Position** (mid-right, just below N-D transforms): shift the N-D
   structure itself sideways, one slider per axis — also purely visual.
 - **Leakage metrics** (bottom-right): click **Analyze Leakage** to get
   real numbers on how much the current shadow is distorting the truth.
@@ -336,12 +333,12 @@ end-to-end, before we explain *why* each piece behaves the way it does.
 3. Look at the dimension badge in the header. It should read `dimension: 6`.
 4. In the **Structure** panel, change **Type** to **Hypercube**, leave
    everything else, and click **Generate**. You should now see a cube-like
-   wireframe (in 4-D by default for this type) replace the previous dot
-   cloud, and the dimension badge should update to `4`.
+   wireframe (in 5-D by default for this type) replace the previous dot
+   cloud, and the dimension badge should update to `5`.
 5. In the **Projection** panel, change **Method** to
    **PCA (top 3 principal components)** and click **Apply Projection**.
    The shape reorients slightly — same points, different "photo angle."
-6. In **Rotation planes**, you should already have one row. Drag its speed
+6. In **N-D transforms**, you should already have one row. Drag its speed
    slider around and watch the structure visibly tumble.
 7. Click **Analyze Leakage**. A handful of metric groups appear at the
    bottom, each with a number. Don't worry about what they mean yet —
@@ -369,6 +366,8 @@ is a `Type` choice in that panel.
 | **Layered Sphere Packing** | Several concentric spherical-code "shells" (like Russian nesting dolls made of evenly-spaced dots), one shell per `num_shells`, spaced `radius_step` apart. Each shell gets its own color in the viewer. | See how a projection handles *layers* — does shell 1 still look clearly separated from shell 3 after projecting? |
 | **Regular Simplex** | The N-D generalization of a triangle (2-D) / tetrahedron (3-D): `n + 1` points, every single pair the *exact same distance* apart. The simplest possible fully-symmetric shape. | The cleanest baseline for the **Rank-order distortion** metric, since every true pairwise distance starts out identical. |
 | **Voronoi Neighborhood** | Takes a random cloud, picks one point (`center_index`), and works out exactly which other points are its genuine geometric neighbors in N-D (via Delaunay triangulation — an advanced computational-geometry technique). The chosen center point, its true neighbors, and everyone else are colored differently. Capped at dimension 4–8 and ~150 points because this computation gets slow/unstable beyond that. | The most direct way to test "did the projection preserve *true* local neighborhoods?" — you can visually check whether the highlighted neighbors still look adjacent after projecting. |
+| **Clifford Torus** | A flat torus `S¹ × S¹` embedded in exactly 4 dimensions: one circle uses axes 0–1 and the other uses axes 2–3. Every point stays the same distance from the origin. `resolution_u` and `resolution_v` control the two wrapped sampling directions. | A clean demonstration of a surface that belongs naturally in 4-D rather than being a distorted 3-D doughnut. Rotate planes that mix its two axis pairs to reveal its hidden structure. |
+| **Klein Bottle** | A closed, non-orientable surface embedded without self-intersection in exactly 4 dimensions. Its wireframe closes with the twisted identification `(2π, v) ~ (0, -v)`, so the final ring joins the first in reverse rather than leaving an open seam. | Compare a genuine 4-D embedding with familiar self-intersecting 3-D Klein-bottle pictures, and watch projection create apparent intersections that are not present in 4-D. |
 
 > **Tip:** every structure type has its own set of extra number/dropdown
 > fields (radius, point count, seed, etc.) that appear once you select it.
@@ -406,7 +405,7 @@ formula.
 
 ---
 
-## Part 7 — Rotation planes explained
+## Part 7 — N-D transforms explained
 
 In 3-D, "rotating an object" means spinning it around an axis (the classic
 X, Y, or Z axis — or really, around any single line through space). That
@@ -421,68 +420,73 @@ is secretly the same thing as "rotate within the X–Y plane" — it's just
 that in 3-D there's always exactly one axis left over once you pick a
 plane, so the two ways of describing it happen to coincide. In 4-D there
 are already 6 different possible plane choices (any 2 of 4 axes), and
-higher dimensions have even more. The two axis dropdowns in each Rotation
-planes row are exactly this: "which 2 axes define the plane I'm spinning
-within."
+higher dimensions have even more. Choose **Plane rotation** as the transform
+type, then select one canonical unordered pair such as `axes 0–3`. Reversed
+pairs are not duplicated: direction comes from the sign of Angle and Speed.
 
-- Each row = one such plane rotation, with its own **speed** (radians per
-  second of animation; negative reverses direction; 0 freezes just that
-  row in place) — drag its slider or type an exact value in the number box
-  next to it.
+- Each row begins with a **Transform type**. Plane rotation uses one
+  canonical unordered plane selector; Axis scale uses one axis selector.
+  Targets already used by another row of the same type are omitted.
+- Every row has its own **Speed** in radians per second. Negative reverses
+  direction or phase, and 0 holds that row at its current state. Drag the
+  slider or type an exact value; double-clicking the slider sets Speed to 0.
 - You can stack up to **one row per dimension** at once (4 rows for a 4-D
   structure, up to 12 for a 12-D one); they combine into one compound
-  tumbling motion.
-- Beneath each row's speed controls is a second, smaller **Angle** box (in
-  degrees) that jumps that one row straight to an exact angle instead of
-  waiting for Speed to accumulate there. It only works while rotation is
-  **paused** — otherwise the animation would overwrite your typed value
-  again on the very next frame — and it doesn't show you the live angle
-  while playing; it's a one-way "jump to" control, not a readout. It
-  resets to 0 whenever the real angle does too (on Generate, and on
-  Reset rotation).
-- This is purely a client-side visual effect in your browser — the
-  rotation angles are **never sent to the server**. Only the resulting
-  rotated coordinates get sent, and only when you click Analyze Leakage.
+  transformation.
+- Beneath Speed is an **Angle** box for Plane rotation or a **Phase** box
+  for Axis scale, plus a small dial. While playing, the disabled box and dial
+  are live readouts refreshed 10 times per second. Click **Pause** to type an
+  exact degree value or drag the dial; double-click the dial to reset just
+  that row to 0°. Generate and Reset transforms return every row to 0°.
+- Choose **Axis scale** as the transform type to select one coordinate instead.
+  Its phase produces the scale factor `cos(phase) + sin(phase)`. Positive values
+  stretch that coordinate, zero collapses it, and negative values reflect it.
+  This makes an effective dimension probe: watch features disappear as one
+  coordinate collapses.
+- This is purely a client-side visual effect in your browser — transform
+  settings are **never sent to the server as parameters**. Only the resulting
+  coordinates are sent, and only when you click Analyze Leakage.
 
 Two things that surprise almost everyone the first time:
 
-> **Picking the same axis in both dropdowns of one row does not rotate
-> anything.** It produces a pulsing/scaling wobble on that single
-> coordinate instead — a real visual quirk, not a bug you're imagining.
-> Always pick two *different* axes.
+> **Transform type is explicit.** Plane rotation offers one unordered plane
+> selector; Axis scale offers one axis selector and shows its live factor.
+> Planes and scale axes already active in another row are omitted, preventing
+> duplicate or reversed copies of the same transform target.
 
-> **Pause vs. Reset rotation — two different buttons, two different
+> **Pause vs. Reset transforms — two different buttons, two different
 > jobs.** **Pause** (it relabels itself **Resume** once clicked) freezes
-> the structure exactly wherever it currently is — every row's angle is
+> the structure exactly wherever it currently is — every row's angle or phase is
 > held in place, and clicking Resume continues tumbling from that same
-> pose. **Reset rotation** is a separate button that always snaps every
-> row back to angle 0, exactly how the structure looked right after
-> Generate, discarding whatever pose was showing. Use Pause for a
-> screenshot or a reproducible Analyze Leakage reading; use Reset rotation
+> pose. **Reset transforms** is a separate button that always snaps every
+> row back to its neutral state (rotation angle 0; Axis scale phase 0 and
+> factor 1), discarding whatever transformed pose was showing. Position is
+> unchanged. Use Pause for a
+> screenshot or a reproducible Analyze Leakage reading; use Reset transforms
 > if you actually want to start over.
 
 ---
 
 ## Part 7b — Position explained
 
-Rotation planes spin the structure in place, around its own center.
-Sometimes you want to **move** it instead — shift the whole thing sideways
-without changing its orientation. That's what the **Position** panel does:
+N-D transforms rotate or scale the structure around its own coordinate origin.
+Sometimes you want to **move** it too — shift the whole thing sideways
+without changing those transforms. That's what the **Position** panel does:
 one slider (plus a paired number box for typing an exact value) per
 dimension, each shifting every point's coordinate on that one axis by a
-fixed amount. Every frame, the structure is rotated first, *then* shifted
+fixed amount. Every frame, N-D transforms are applied first, *then* shifted
 by these offsets, and only after that is it projected down to 3-D — so
-Position and Rotation planes compose cleanly, in that order.
+Position and N-D transforms compose cleanly, in that order.
 
 - Every axis starts at **0** (no shift) and resets to **0** automatically
   every time you click **Generate** — a fresh structure always starts
-  centered, the same way rotation always starts at angle 0.
+  centered, just as every transform starts at Angle/Phase 0.
 - **Reset position** snaps every axis back to 0 without regenerating,
-  exactly like **Reset rotation** does for angles.
+  exactly like **Reset transforms** does for angles and phases.
 - With 4–12 sliders depending on the current dimension, the Position list
   scrolls independently once it gets tall — you don't need to scroll the
   whole right-hand panel just to reach Leakage metrics below it.
-- This is purely a client-side visual effect, exactly like rotation — the
+- This is purely a client-side visual effect, exactly like N-D transforms — the
   offset is never sent to the server as a parameter, only baked into
   whatever coordinates Analyze Leakage happens to capture.
 
@@ -498,12 +502,47 @@ Position and Rotation planes compose cleanly, in that order.
 
 ---
 
+## Part 7c — Saving and loading presets
+
+The Preset controls in the header save a complete, reproducible composition—not
+just whichever panel happens to be visible. A preset includes the Structure type
+and parameters, Projection method and parameters, ordered N-D transform rows and
+their current Angle/Phase values, Position, camera view, and play/pause state.
+
+- Choose **Save as…**, enter a unique name, and click Save. The new name becomes
+  selected in the Preset dropdown.
+- **Save** updates the selected named preset. When **Current session** is
+  selected, Save asks for a name instead.
+- Selecting a name loads it. Generation and projection are checked first; the
+  visible scene changes only if both succeed. Every preset opens **paused**, so
+  its exact saved pose is visible before animation resumes.
+- A `•` after the selected name means the current controls, pose, position, or
+  camera view differ from the saved preset. Save updates it; Save as creates a
+  separate preset.
+- The **⋯** menu provides Rename, Duplicate, Delete, Export selected, Export all,
+  and Import.
+
+Named presets live in this browser's `localStorage` for the exact site origin.
+For example, `http://127.0.0.1:8000` and `http://localhost:8000` have separate
+collections. The app also keeps a separate automatic **Current session** snapshot
+and restores its last valid state after refresh. This automatic snapshot never
+overwrites a named preset.
+
+Use **Export selected…** to download one human-readable
+`name.ndstudio.json` file, or **Export all…** for a complete backup. Import accepts
+either format, validates its version and parameters, and offers **Replace**,
+**Keep both**, or **Cancel import** when a name already exists. Browser storage is
+the convenience copy; exported JSON is the portable backup for another browser,
+profile, computer, or app origin.
+
+---
+
 ## Part 8 — Leakage metrics explained
 
 This is the payoff for everything above: a way to put an actual number on
 "how much is this specific shadow lying to me, right now?" Click
 **Analyze Leakage** and the app sends the exact points currently on screen
-(including any live rotation) to the server, which computes five
+(including any live transform) to the server, which computes five
 different kinds of distortion using SciPy. Each one catches a different
 *flavor* of lie a projection can tell.
 
@@ -546,21 +585,23 @@ Do these in order — each one builds on an idea from the previous one.
 
 ### Exercise 2 — Make it tumble
 
-1. With the hypercube still showing, go to **Rotation planes**. There's
-   already one row, defaulted to axes (0, 1) — the app added it at page
+1. With the hypercube still showing, go to **N-D transforms**. There's
+   already one Plane rotation row, defaulted to `axes 0–1` — the app added it at page
    load, before you ever switched structures.
 2. Drag its speed slider to about 1.0 and watch it spin.
-3. Click **+ Add rotation plane**. Notice the new row automatically
-   defaults to axes (2, 3) — the two axes the first row isn't already
-   using — so the two rotations start out independent. Set its speed to
-   something like -0.7, either by dragging the slider or typing the value
-   directly in the number box next to it. Now two independent
-   plane-rotations are combining into one tumble.
+3. Click **+ Add transform**. The new Plane rotation uses the first
+   canonical plane not already active, normally `axes 0–2`. Set its speed
+   to about -0.7. The two distinct plane rotations now compose in row order;
+   because they share axis 0, the compound motion differs from two rotations
+   acting on disjoint axis pairs.
 4. Click **Pause**. Notice the structure freezes exactly where it was,
    and the button relabels itself **Resume** — click it again to keep
-   tumbling from that same pose. Now try **Reset rotation** instead: this
+   tumbling from that same pose. Now try **Reset transforms** instead: this
    one *does* snap back to the just-generated orientation, discarding the
    current pose — the opposite of Pause.
+5. Pause again, change the second row's **Transform type** to **Axis scale**,
+   and drag its Phase dial. The row now stretches, collapses, and reflects one
+   coordinate instead of rotating a plane; its live factor explains the effect.
 
 ### Exercise 3 — Compare projection methods on the same shape
 
@@ -624,15 +665,15 @@ click.
 ### Exercise 6 — The reproducibility gotcha
 
 1. With any structure and projection applied, make sure at least one
-   Rotation planes row has a nonzero speed and rotation is **playing**
+   N-D transform row has a nonzero speed and animation is **playing**
    (the button should read "Pause", not "Resume").
 2. Click **Analyze Leakage** twice, a couple of seconds apart, without
    touching anything else. Notice the numbers are slightly **different**
    each time.
-3. This is expected: Analyze Leakage always uses whatever rotated view is
+3. This is expected: Analyze Leakage always uses whatever transformed view is
    on screen *at the instant you click it* — not a fixed snapshot. Click
    **Pause** (freezing the current look exactly where it is, per
-   [Part 7](#part-7--rotation-planes-explained)) and click Analyze Leakage
+   [Part 7](#part-7--n-d-transforms-explained)) and click Analyze Leakage
    twice more — now the numbers should match exactly.
 
 ---
@@ -643,15 +684,16 @@ click.
 |---|---|
 | "I changed a Projection field but the view didn't update." | You need to click **Apply Projection** — changing the method or its fields never redraws by itself (the one exception is immediately after Generate, which auto-applies). |
 | "I changed a Structure field but the view didn't update." | Same idea — click **Generate**. Only Generate talks to the server for structure data. |
-| "I set a custom camera distance / matrix, then clicked Generate again, and it reset!" | Expected for every Projection field *except* the custom matrix text box — Generate always resets the Projection panel to its schema defaults, every time, even if you didn't touch the Structure Type. |
-| "I clicked Reset rotation expecting it to just pause, but my rotation angle disappeared." | Reset rotation always snaps back to angle 0 on purpose — it's a separate button from **Pause**. Use Pause (not Reset rotation) whenever you want to freeze the current pose instead of discarding it. See [Part 7](#part-7--rotation-planes-explained). |
-| "I carefully positioned my structure, clicked Generate again, and my Position sliders all jumped back to 0." | Expected — Position always resets to 0 on every Generate, on purpose, the same way rotation always starts at angle 0 on a new structure. See [Part 7b](#part-7b--position-explained). |
+| "I set a custom camera distance or matrix, then clicked Generate again, and it reset!" | Expected: Generate rebuilds every Projection field from its schema defaults, including the custom matrix, and then auto-applies the selected method. |
+| "I clicked Reset transforms expecting it to just pause, but my angle disappeared." | Reset transforms returns every Angle/Phase to 0; it is separate from **Pause**. Use Pause whenever you want to freeze the current state instead of discarding it. See [Part 7](#part-7--n-d-transforms-explained). |
+| "I carefully positioned my structure, clicked Generate again, and my Position sliders all jumped back to 0." | Expected — Position always resets to 0 on every Generate, on purpose, just as all transform Angle/Phase values return to 0 for a new structure. See [Part 7b](#part-7b--position-explained). |
 | "My two Analyze Leakage clicks gave different numbers for no reason." | You were animating — see Exercise 6. |
 | "Generate failed with a validation error about `center_index`." | Only relevant to **Voronoi Neighborhood**: its `center_index` field's maximum (149) isn't automatically lowered when you pick a smaller `num_points`. Keep `center_index` below your chosen `num_points`. |
-| "I typed a rotation-plane pair with the same axis twice and got a weird pulsing wobble instead of a spin." | Expected — see [Part 7](#part-7--rotation-planes-explained). Pick two different axes. |
-| "I typed a value into a rotation row's Angle box but nothing happened." | The Angle box is disabled unless rotation is **paused** — click **Pause** first, then type the exact angle in degrees. See [Part 7](#part-7--rotation-planes-explained). |
+| "How do I stretch or collapse just one dimension?" | Set **Transform type** to **Axis scale**, choose the axis, and use Phase/Speed. Its live factor explains the stretch, collapse, or reflection. See [Part 7](#part-7--n-d-transforms-explained). |
+| "I typed a value into an Angle/Phase box but nothing happened." | The box is a live readout while playing and editable while **paused**. Click Pause first, then type the exact value. See [Part 7](#part-7--n-d-transforms-explained). |
 | "The dimension badge didn't update when I typed a new Dimension value." | It only updates after a **successful** Generate completes, reading the server's response — not from the field itself as you type. |
 | "Tooltips seem slow/inconsistent." | Hover and hold still for about a quarter of a second directly over the label, button, or field (not just near it) — the tooltip fades in quickly but does need a brief, still hover to trigger. |
+| "My presets disappeared when I changed from `127.0.0.1` to `localhost`." | Browser storage is scoped to the exact origin, so those addresses have separate preset collections. Return to the original address or export there and import the JSON at the new address. |
 
 ---
 
@@ -680,11 +722,18 @@ click.
   light through it from one pole" technique, generalized to N dimensions.
 - **Rotation plane** — in dimensions above 3, "rotating" means spinning
   within a plane defined by *two* chosen axes, rather than around a single
-  axis. See [Part 7](#part-7--rotation-planes-explained).
+  axis. See [Part 7](#part-7--n-d-transforms-explained).
+- **Axis scale** — an animated single-coordinate transform whose factor is
+  `cos(phase) + sin(phase)`. Positive values stretch, zero collapses, and
+  negative values reflect that dimension. See [Part 7](#part-7--n-d-transforms-explained).
 - **Position offset** — a fixed N-D vector added to every point, one
   slider per axis, shifting the structure without changing its
-  orientation. Applied after rotation and before projection, and resets
+  orientation. Applied after N-D transforms and before projection, and resets
   to 0 on every Generate. See [Part 7b](#part-7b--position-explained).
+- **Preset** — a named, versioned configuration stored in this browser. It
+  captures structure, projection, transforms and phases, Position, and camera
+  view. JSON export makes it portable. See
+  [Part 7c](#part-7c--saving-and-loading-presets).
 - **Root system** — a highly symmetric set of vectors studied in an area
   of mathematics called Lie theory; D_n and E_n (E_6/E_7/E_8) are two
   well-known families, included here for their symmetry and mathematical
