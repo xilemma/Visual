@@ -110,11 +110,11 @@ export function validateConfiguration(raw, structuresSchema, projectionsSchema) 
       if (i === j) throw new Error(`Transform ${index + 1} is not a plane rotation.`);
       if (i > j) [i, j] = [j, i];
       const key = `${i}:${j}`;
-      if (planes.has(key)) throw new Error(`Transform ${index + 1} duplicates plane ${i}–${j}.`);
+      if (planes.has(key)) throw new Error(`Transform ${index + 1} duplicates plane ${i + 1}–${j + 1}.`);
       planes.add(key);
     } else {
       if (i !== j) throw new Error(`Transform ${index + 1} is not an axis scale.`);
-      if (scaleAxes.has(i)) throw new Error(`Transform ${index + 1} duplicates scale axis ${i}.`);
+      if (scaleAxes.has(i)) throw new Error(`Transform ${index + 1} duplicates scale axis ${i + 1}.`);
       scaleAxes.add(i);
     }
     const speed = Number(row.speed);
@@ -136,7 +136,7 @@ export function validateConfiguration(raw, structuresSchema, projectionsSchema) 
   const position = raw.position.map((value, index) => {
     const number = Number(value);
     if (!Number.isFinite(number) || number < -5 || number > 5) {
-      throw new Error(`Position axis ${index} must be between -5 and 5.`);
+      throw new Error(`Position axis ${index + 1} must be between -5 and 5.`);
     }
     return number;
   });

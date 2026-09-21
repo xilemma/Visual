@@ -206,6 +206,42 @@ button.primary:hover {
   pointer-events: none;
 }
 
+#axis-legend {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(11, 14, 20, 0.7);
+  padding: 6px 10px;
+  border-radius: 8px;
+  line-height: 1.7;
+  pointer-events: none;
+}
+
+.axis-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.axis-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.axis-swatch-x { background: #ff6b6b; }
+.axis-swatch-y { background: #4ade80; }
+.axis-swatch-z { background: #4f8cff; }
+
+.axis-legend-row span:last-child {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .meta-readout {
   font-size: 11px;
   color: var(--muted);
@@ -586,4 +622,5 @@ button.primary:hover {
 #app-tooltip.visible {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }

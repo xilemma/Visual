@@ -7,18 +7,27 @@
 // every current and future element carrying `data-tooltip`, including ones
 // built dynamically by controls.js.
 
-const SHOW_DELAY_MS = 250;
+const SHOW_DELAY_MS = 650;
+const HIDE_DELAY_MS = 120;
 const VIEWPORT_MARGIN = 8;
 
 let tooltipEl = null;
 let showTimer = null;
+let hideTimer = null;
 let activeTarget = null;
+let pendingTarget = null;
+let suppressedTarget = null;
 
 function ensureTooltipEl() {
   if (!tooltipEl) {
     tooltipEl = document.createElement("div");
     tooltipEl.id = "app-tooltip";
     tooltipEl.setAttribute("role", "tooltip");
+    tooltipEl.addEventListener("pointerenter", () => clearTimeout(hideTimer));
+    tooltipEl.addEventListener("pointerleave", (event) => {
+      if (activeTarget?.contains(event.relatedTarget)) return;
+      scheduleHide();
+    });
     document.body.appendChild(tooltipEl);
   }
   return tooltipEl;
@@ -49,6 +58,9 @@ function positionTooltip(target) {
 }
 
 function showTooltip(target) {
+  showTimer = null;
+  pendingTarget = null;
+  if (target === suppressedTarget || !target.isConnected) return;
   const text = target.dataset.tooltip;
   if (!text) return;
   const el = ensureTooltipEl();
@@ -60,40 +72,96 @@ function showTooltip(target) {
 
 function hideTooltip() {
   clearTimeout(showTimer);
+  clearTimeout(hideTimer);
   showTimer = null;
+  hideTimer = null;
+  pendingTarget = null;
   activeTarget = null;
   if (tooltipEl) tooltipEl.classList.remove("visible");
 }
 
 function scheduleShow(target) {
   clearTimeout(showTimer);
+  clearTimeout(hideTimer);
+  hideTimer = null;
+  if (target === suppressedTarget) return;
+  pendingTarget = target;
   showTimer = setTimeout(() => showTooltip(target), SHOW_DELAY_MS);
 }
 
+function scheduleHide() {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(hideTooltip, HIDE_DELAY_MS);
+}
+
+function dismissAndSuppress(target = activeTarget || pendingTarget) {
+  if (target) suppressedTarget = target;
+  hideTooltip();
+}
+
 export function initTooltips() {
-  document.addEventListener("mouseover", (e) => {
+  document.addEventListener("pointerover", (e) => {
     const target = closestTooltipTarget(e.target);
+    if (suppressedTarget && !suppressedTarget.contains(e.target)) suppressedTarget = null;
     if (!target || target === closestTooltipTarget(e.relatedTarget)) return;
+    if (target === activeTarget) {
+      clearTimeout(hideTimer);
+      return;
+    }
     hideTooltip();
     scheduleShow(target);
   });
 
-  document.addEventListener("mouseout", (e) => {
+  document.addEventListener("pointermove", (e) => {
+    const target = closestTooltipTarget(e.target);
+    if (target && target === pendingTarget) scheduleShow(target);
+  });
+
+  document.addEventListener("pointerout", (e) => {
     const target = closestTooltipTarget(e.target);
     if (!target || target === closestTooltipTarget(e.relatedTarget)) return;
-    hideTooltip();
+    if (target === suppressedTarget) suppressedTarget = null;
+    if (tooltipEl?.contains(e.relatedTarget)) {
+      clearTimeout(hideTimer);
+      return;
+    }
+    scheduleHide();
   });
 
   document.addEventListener("focusin", (e) => {
     const target = closestTooltipTarget(e.target);
-    if (!target) return;
+    if (!target || target === suppressedTarget) return;
     hideTooltip();
     showTooltip(target);
   });
 
   document.addEventListener("focusout", (e) => {
-    if (closestTooltipTarget(e.target) === activeTarget) hideTooltip();
+    const target = closestTooltipTarget(e.target);
+    if (target === suppressedTarget) suppressedTarget = null;
+    if (target === activeTarget || target === pendingTarget) hideTooltip();
   });
+
+  document.addEventListener("pointerdown", (e) => {
+    if (tooltipEl?.contains(e.target)) {
+      hideTooltip();
+      return;
+    }
+    dismissAndSuppress(closestTooltipTarget(e.target) || activeTarget || pendingTarget);
+  }, true);
+
+  document.addEventListener("click", (e) => {
+    // Keyboard activation produces a click without pointerdown.
+    if (e.detail === 0) dismissAndSuppress(closestTooltipTarget(e.target) || activeTarget || pendingTarget);
+  }, true);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      dismissAndSuppress(activeTarget || pendingTarget || closestTooltipTarget(document.activeElement));
+    } else if (e.key === "Enter" || e.key === " ") {
+      const target = closestTooltipTarget(document.activeElement);
+      if (target) dismissAndSuppress(target);
+    }
+  }, true);
 
   document.addEventListener("scroll", hideTooltip, true);
   window.addEventListener("resize", hideTooltip);

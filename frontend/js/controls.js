@@ -244,7 +244,7 @@ export class RotationPanel {
       const isAxisScale = row.type === "scale";
       const kind = document.createElement("div");
       kind.className = `rotation-kind ${isAxisScale ? "rotation-kind-scale" : ""}`;
-      kind.textContent = isAxisScale ? `Axis ${row.plane[0]} scale` : "Plane rotation";
+      kind.textContent = isAxisScale ? `Axis ${row.plane[0] + 1} scale` : "Plane rotation";
       kind.dataset.tooltip = isAxisScale
         ? "Intentional single-axis scaling. Its phase produces the factor cos(phase) + sin(phase): positive values stretch, 0 collapses this coordinate, and negative values reflect it."
         : "A genuine rotation in the plane formed by the two different selected axes.";
@@ -478,7 +478,7 @@ export class RotationPanel {
       if (used.has(key) && key !== current) continue;
       const opt = document.createElement("option");
       opt.value = `${i},${j}`;
-      opt.textContent = `axes ${i}\u2013${j}`;
+      opt.textContent = `axes ${i + 1}\u2013${j + 1}`;
       opt.selected = key === current;
       select.appendChild(opt);
     }
@@ -500,7 +500,7 @@ export class RotationPanel {
       if (used.has(axis) && axis !== row.plane[0]) continue;
       const opt = document.createElement("option");
       opt.value = String(axis);
-      opt.textContent = `axis ${axis}`;
+      opt.textContent = `axis ${axis + 1}`;
       opt.selected = axis === row.plane[0];
       select.appendChild(opt);
     }
@@ -562,7 +562,7 @@ export class PositionPanel {
 
       const label = document.createElement("span");
       label.className = "position-axis-label";
-      label.textContent = `axis ${axis}`;
+      label.textContent = `axis ${axis + 1}`;
 
       const slider = document.createElement("input");
       slider.type = "range";
@@ -570,7 +570,7 @@ export class PositionPanel {
       slider.max = "5";
       slider.step = "0.05";
       slider.value = String(this.offset[axis]);
-      slider.dataset.tooltip = `Shifts every point's axis-${axis} coordinate by this amount, applied after rotation and before projection.`;
+      slider.dataset.tooltip = `Shifts every point's axis-${axis + 1} coordinate by this amount, applied after rotation and before projection.`;
 
       const number = document.createElement("input");
       number.type = "number";

@@ -11,6 +11,57 @@ const PALETTE = [
   [0.36, 0.93, 0.93],
 ];
 
+// Matches the axis-legend swatch colors in index.html/style.css.
+const AXIS_LENGTH = 3.2;
+const AXIS_HEX = { x: "#ff6b6b", y: "#4ade80", z: "#4f8cff" };
+const AXIS_RGB = { x: [1, 0.42, 0.42], y: [0.29, 0.87, 0.5], z: [0.31, 0.55, 1] };
+
+function makeAxisLabelSprite(text, color) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  ctx.font = "bold 42px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = color;
+  ctx.fillText(text, 32, 32);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
+  sprite.scale.set(0.5, 0.5, 1);
+  return sprite;
+}
+
+/** Colored X/Y/Z lines through the origin plus a billboard letter at each positive tip. */
+function buildAxisIndicators() {
+  const group = new THREE.Group();
+
+  const positions = new Float32Array([
+    -AXIS_LENGTH, 0, 0, AXIS_LENGTH, 0, 0,
+    0, -AXIS_LENGTH, 0, 0, AXIS_LENGTH, 0,
+    0, 0, -AXIS_LENGTH, 0, 0, AXIS_LENGTH,
+  ]);
+  const colors = new Float32Array([
+    ...AXIS_RGB.x, ...AXIS_RGB.x,
+    ...AXIS_RGB.y, ...AXIS_RGB.y,
+    ...AXIS_RGB.z, ...AXIS_RGB.z,
+  ]);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true })));
+
+  const tip = AXIS_LENGTH + 0.3;
+  const labelX = makeAxisLabelSprite("X", AXIS_HEX.x);
+  labelX.position.set(tip, 0, 0);
+  const labelY = makeAxisLabelSprite("Y", AXIS_HEX.y);
+  labelY.position.set(0, tip, 0);
+  const labelZ = makeAxisLabelSprite("Z", AXIS_HEX.z);
+  labelZ.position.set(0, 0, tip);
+  group.add(labelX, labelY, labelZ);
+
+  return group;
+}
+
 export class Viewer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -27,6 +78,7 @@ export class Viewer {
     this.controls.enableDamping = true;
 
     this.scene.add(new THREE.GridHelper(6, 12, 0x334155, 0x1b2130));
+    this.scene.add(buildAxisIndicators());
     this.scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
     this.pointsGeometry = new THREE.BufferGeometry();

@@ -56,7 +56,12 @@
     </aside>
 
     <main id="viewer-container">
-      <canvas id="viewer-canvas" data-tooltip="Left-drag to orbit the camera, scroll to zoom, right-drag to pan.&#10;&#10;These only move the camera viewpoint; they never change the underlying coordinates and are independent of the N-D transform controls applied before projection."></canvas>
+      <canvas id="viewer-canvas"></canvas>
+      <div id="axis-legend">
+        <div class="axis-legend-row"><span class="axis-swatch axis-swatch-x"></span>X <span id="axis-legend-x">&ndash;</span></div>
+        <div class="axis-legend-row"><span class="axis-swatch axis-swatch-y"></span>Y <span id="axis-legend-y">&ndash;</span></div>
+        <div class="axis-legend-row"><span class="axis-swatch axis-swatch-z"></span>Z <span id="axis-legend-z">&ndash;</span></div>
+      </div>
       <div id="viewer-hint">drag to orbit &middot; scroll to zoom &middot; right-drag to pan</div>
     </main>
 

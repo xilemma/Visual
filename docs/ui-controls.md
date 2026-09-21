@@ -16,6 +16,7 @@ format in [frontend/js/presets.js](../frontend/js/presets.js).
 - [Layout map](#layout-map)
 - [Header](#header)
 - [Presets](#presets)
+- [Tooltips](#tooltips)
 - [Structure panel](#structure-panel)
 - [Viewer](#viewer)
 - [Projection panel](#projection-panel)
@@ -149,6 +150,34 @@ unload. Incomplete transient form edits are skipped, leaving the last valid
 session intact. On startup the app attempts to regenerate that session; if it is
 invalid or no longer compatible, startup falls back to the normal defaults.
 Autosave never modifies a named preset—only an explicit Save does that.
+
+## Tooltips
+
+The delegated controller in [tooltip.js](../frontend/js/tooltip.js) serves every
+current or dynamically created element carrying `data-tooltip`. The main viewer
+canvas deliberately does not carry that attribute: its large interactive area
+made incidental help intrusive, and the permanent `#viewer-hint` already states
+the camera bindings.
+
+For all other tooltip targets:
+
+- Pointer hover must remain stationary for **650 ms** before showing.
+- Pointer exit schedules a short **120 ms** hide delay, allowing the pointer to
+  cross onto the tooltip itself without making it disappear.
+- Pointer-down dismisses immediately, before a spinner, slider, select, or button
+  performs its action. Keyboard-generated clicks do the same.
+- **Escape**, **Enter**, or **Space** dismisses a tooltip associated with the
+  focused control.
+- Dismissal suppresses that target until the pointer leaves it or keyboard focus
+  moves away, preventing a tooltip from reopening while the pointer remains over
+  a number-input arrow.
+- Scrolling, resizing, or moving focus away hides the tooltip. Hovering the
+  tooltip itself keeps it visible.
+- Keyboard focus shows help immediately unless that target is currently
+  suppressed.
+
+The tooltip is non-interactive help (`role="tooltip"`), even though it accepts
+pointer hover so longer text remains readable.
 
 ## Structure panel
 
@@ -338,8 +367,12 @@ coordinates the viewer actually draws.
   ([projections/registry.py](../ndstudio/projections/registry.py));
   `orthogonal` is first and is the default.
 - `change` → `rebuildProjectionForm()`: rebuilds `#projection-params` for
-  the newly selected method, clamping the HTML `max` attribute of any
-  `axis_x`/`axis_y`/`axis_z`/`pole_axis` field to `currentDimension - 1`.
+  the newly selected method, clamping the displayed `max` of any
+  `axis_x`/`axis_y`/`axis_z`/`pole_axis` field to `currentDimension`. These
+  four fields always **display 1-based axis numbers**; the value read from
+  them and sent to the API is converted back to 0-based
+  (`0..currentDimension - 1`) first — see
+  [Cross-control interrelationships](#cross-control-interrelationships-read-this).
   **Does not re-apply the projection** — click **Apply Projection**
   afterward to see the effect (the one exception is immediately after a
   Generate, which auto-applies — see below).
@@ -351,12 +384,12 @@ Same schema-driven builder as the structure form. Per-method schema (from
 
 | Method key | Label | Params |
 |---|---|---|
-| `orthogonal` | Orthogonal (axis-aligned) | `axis_x` int (0), `axis_y` int (1), `axis_z` int (2) — each clamped client-side to `0..dimension-1` |
+| `orthogonal` | Orthogonal (axis-aligned) | `axis_x` int, displayed default **1** (stored/sent 0); `axis_y` displayed default **2** (stored 1); `axis_z` displayed default **3** (stored 2) — each displayed 1-based and clamped client-side to `1..dimension` (stored/sent 0-based, `0..dimension-1`) |
 | `pca` | PCA (top 3 principal components) | none — requires an existing point set (uses the viewer's current base points) |
 | `jl` | Random Johnson–Lindenstrauss | `seed` int 0–9999 (0); `orthonormalize` bool (true) |
 | `custom` | User-Defined Matrix | `matrix_json` textarea — must parse to a JSON array of shape exactly `3 × dimension` |
 | `perspective` | Perspective from N-space | `camera_distance` float 1.5–20 (4.0) |
-| `stereographic` | Stereographic | `pole_axis` int **-1**..`dimension-1` (default **-1**, a sentinel meaning "last axis," also explained by its tooltip); `radius` float 0.1–10 (1.0) |
+| `stereographic` | Stereographic | `pole_axis` int, displayed **0**..`dimension` (default **0**, a sentinel meaning "last axis," also explained by its tooltip; stored/sent 0-based as **-1**..`dimension-1`, default **-1**); `radius` float 0.1–10 (1.0) |
 
 For `custom`, `rebuildProjectionForm()` creates a fresh empty textarea and
 then fills it with an identity-slice matrix (rows selecting axes 0, 1, 2)
@@ -417,9 +450,11 @@ explicit Transform type selector:
 The row is rendered as:
 
 - A **Transform type** selector: `Plane rotation` or `Axis scale`.
-- For Plane rotation, one selector containing canonical unordered pairs
-  (`axes 0–1`, `axes 0–2`, …). Reversed pairs never appear, and planes used by
-  another row are omitted. Direction is controlled by signed Angle and Speed.
+- For Plane rotation, one selector containing canonical unordered pairs,
+  displayed 1-based (`axes 1–2`, `axes 1–3`, …); the underlying option value
+  and stored `plane` indices remain 0-based. Reversed pairs never appear, and
+  planes used by another row are omitted. Direction is controlled by signed
+  Angle and Speed.
 - For Axis scale, one axis selector. Axes used by another scale row are omitted.
 - A speed `<input type="range">` over **-30..30°/s** and a paired
   `<input type="number">` over **-120..120°/s**, both step 1 and default
@@ -538,11 +573,12 @@ do, via Analyze Leakage.
 ### Rows — `#position-controls` (dynamic, via `PositionPanel`)
 
 Unlike `RotationPanel`, there are no add/remove buttons — the panel always
-renders exactly one row per axis (`0..dimension-1`), since a translation
-offset is a single dense N-D vector, not a sparse list of independent
-planes. Each row is:
+renders exactly one row per axis (internal indices `0..dimension-1`), since a
+translation offset is a single dense N-D vector, not a sparse list of
+independent planes. Each row is:
 
-- A read-only axis label.
+- A read-only axis label, displayed 1-based (`axis 1`..`axis dimension`); the
+  underlying array index remains 0-based.
 - A paired `<input type="range">` and `<input type="number">`, both range
   **-5..5**, step 0.05, default **0**. Dragging the slider updates the
   number box live; typing in the number box updates the slider, clamped to
@@ -712,6 +748,7 @@ that?" questions.
 | `preset-name-dialog` | `<dialog>` | Overlay | submit/cancel | `askPresetName` | Collects required names for Save as, Rename, and Duplicate |
 | `preset-conflict-dialog` | `<dialog>` | Overlay | button | `askImportConflict` | Resolves import name conflicts with Replace, Keep both, or Cancel import |
 | `preset-status` | live status | Header | n/a | `setPresetStatus` | Reports save/load/import/export results and errors |
+| `app-tooltip` | dynamic `role="tooltip"` overlay | Document | hover/focus; dismissed by interaction/Escape | `initTooltips` | Shows delegated help after 650 ms; suppresses a dismissed target until exit/blur |
 | `structure-type-select` | `<select>` | Structure panel | `change` | `rebuildStructureForm` | Rebuilds `#structure-params` |
 | `field-*` (structure) | dynamic | `#structure-params` | n/a | read by `handleGenerate` | Request body for `/api/generate` |
 | `generate-btn` | `<button>` | Structure panel | `click` | `handleGenerate` | Replaces structure, resets transform phases and Position, rebuilds Projection defaults, then auto-applies |

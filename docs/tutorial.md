@@ -311,10 +311,13 @@ flowchart TB
 - **Leakage metrics** (bottom-right): click **Analyze Leakage** to get
   real numbers on how much the current shadow is distorting the truth.
 
-Every control also has its own built-in tooltip — hover over any label,
-button, or field for a few hundred milliseconds and a short explanation
-pops up. That's a good habit to build early: **if you're ever unsure what
-something does, hover over it before touching it.**
+Most controls have a built-in tooltip — hold still over a label, button, or
+field for about 650 milliseconds and a short explanation appears. Clicking or
+pressing down dismisses it and keeps it suppressed until you leave that control;
+Escape does the same. The main canvas intentionally has no tooltip because it is
+a large, constantly used target; its mouse controls remain in the unobtrusive
+hint along the bottom. **If you're unsure what a control does, hover before
+interacting.**
 
 ---
 
@@ -394,7 +397,7 @@ formula.
 | **Random Johnson–Lindenstrauss** | Builds a *random* 3×N recipe instead of a carefully chosen one, but one built by a specific mathematical formula (the Johnson–Lindenstrauss lemma) that comes with a proven guarantee: on average, across *many* points, relative distances are approximately preserved, no matter the shape. The `seed` field lets you get a different, but equally "safe," random angle; `orthonormalize` (on by default) keeps the 3 output directions at right angles to each other, avoiding a stretched/skewed look. | Comparing against PCA: does a "dumb but principled" random projection do noticeably worse than the "smart" one for this shape? A common technique in real-world machine learning for cheaply shrinking huge dimensional data. |
 | **User-Defined Matrix** | You type your own 3×N matrix by hand as JSON (a text box, pre-filled with a simple example that just selects axes 0, 1, 2 — equivalent to Orthogonal). For total control once you understand the other methods. | Experimenting deliberately, e.g. blending two axes together in a custom way to see a specific effect. |
 | **Perspective from N-space** | Mimics an actual camera: like real-world perspective where far-away things look smaller, this collapses the "extra" axes one at a time using a divide-by-distance formula, controlled by `camera_distance` (how far the virtual camera sits along each collapsed axis). Smaller distances exaggerate the effect; larger ones flatten it out toward looking orthogonal. | Seeing a more "photographic," less flat-looking rendering of the structure. |
-| **Stereographic** | The classic trick mapmakers use to flatten a globe: imagine shining a light from one "pole" of the N-D sphere through every other point, out onto a flat surface on the opposite side. `pole_axis` picks which axis is the "pole" being collapsed this way (`-1` is a shortcut meaning "the last axis"); `radius` should usually match the structure's own radius. | Best paired with sphere-like structures (Hypersphere, Cross-Polytope) since the formula assumes points are roughly the same distance from the center. |
+| **Stereographic** | The classic trick mapmakers use to flatten a globe: imagine shining a light from one "pole" of the N-D sphere through every other point, out onto a flat surface on the opposite side. `pole_axis` picks which axis is the "pole" being collapsed this way (`0` is a shortcut meaning "the last axis"); `radius` should usually match the structure's own radius. | Best paired with sphere-like structures (Hypersphere, Cross-Polytope) since the formula assumes points are roughly the same distance from the center. |
 
 > **Remember:** changing the Method or its fields does **nothing** by
 > itself — you must click **Apply Projection** to actually recompute and
@@ -421,7 +424,7 @@ that in 3-D there's always exactly one axis left over once you pick a
 plane, so the two ways of describing it happen to coincide. In 4-D there
 are already 6 different possible plane choices (any 2 of 4 axes), and
 higher dimensions have even more. Choose **Plane rotation** as the transform
-type, then select one canonical unordered pair such as `axes 0–3`. Reversed
+type, then select one canonical unordered pair such as `axes 1–4`. Reversed
 pairs are not duplicated: direction comes from the sign of Angle and Speed.
 
 - Each row begins with a **Transform type**. Plane rotation uses one
@@ -587,13 +590,13 @@ Do these in order — each one builds on an idea from the previous one.
 ### Exercise 2 — Make it tumble
 
 1. With the hypercube still showing, go to **N-D transforms**. There's
-   already one Plane rotation row, defaulted to `axes 0–1` — the app added it at page
+   already one Plane rotation row, defaulted to `axes 1–2` — the app added it at page
    load, before you ever switched structures.
 2. Drag its speed slider to about `12°/s` and watch it spin.
 3. Click **+ Add transform**. The new Plane rotation uses the first
-   canonical plane not already active, normally `axes 0–2`. Set its speed
+   canonical plane not already active, normally `axes 1–3`. Set its speed
    to about `-7°/s`. The two distinct plane rotations now compose in row order;
-   because they share axis 0, the compound motion differs from two rotations
+   because they share axis 1, the compound motion differs from two rotations
    acting on disjoint axis pairs.
 4. Click **Pause**. Notice the structure freezes exactly where it was,
    and the button relabels itself **Resume** — click it again to keep
@@ -632,7 +635,7 @@ click.
    cloud has no special structure — its "spread" is roughly the same in
    every one of its 8 directions.
 2. **Projection → Method: Orthogonal (axis-aligned)**, leave axes at
-   0, 1, 2 → **Apply Projection**. You are now looking at only 3 of 8
+   1, 2, 3 → **Apply Projection**. You are now looking at only 3 of 8
    coordinates, completely ignoring the other 5.
 3. Click **Analyze Leakage**. Write down (or just remember) the
    **Rank-order distortion → Spearman r** value and the
@@ -693,7 +696,7 @@ click.
 | "How do I stretch or collapse just one dimension?" | Set **Transform type** to **Axis scale**, choose the axis, and use Phase/Speed. Its live factor explains the stretch, collapse, or reflection. See [Part 7](#part-7--n-d-transforms-explained). |
 | "I typed a value into an Angle/Phase box but nothing happened." | The box is a live readout while playing and editable while **paused**. Click Pause first, then type the exact value. See [Part 7](#part-7--n-d-transforms-explained). |
 | "The dimension badge didn't update when I typed a new Dimension value." | It only updates after a **successful** Generate completes, reading the server's response — not from the field itself as you type. |
-| "Tooltips seem slow/inconsistent." | Hover and hold still for about a quarter of a second directly over the label, button, or field (not just near it) — the tooltip fades in quickly but does need a brief, still hover to trigger. |
+| "A tooltip disappeared when I clicked a spinner arrow or another control." | Intentional: pointer-down, keyboard activation, or Escape dismisses it and suppresses it until the pointer leaves or focus moves. Hold still over the control again after re-entering for about 650 ms. The main canvas deliberately has no tooltip; use its bottom hint. |
 | "My presets disappeared when I changed from `127.0.0.1` to `localhost`." | Browser storage is scoped to the exact origin, so those addresses have separate preset collections. Return to the original address or export there and import the JSON at the new address. |
 
 ---

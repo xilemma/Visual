@@ -38,6 +38,9 @@ const els = {
 
   dimensionBadge: document.getElementById("current-dimension"),
   canvas: document.getElementById("viewer-canvas"),
+  axisLegendX: document.getElementById("axis-legend-x"),
+  axisLegendY: document.getElementById("axis-legend-y"),
+  axisLegendZ: document.getElementById("axis-legend-z"),
 
   presetSelect: document.getElementById("preset-select"),
   presetSaveBtn: document.getElementById("preset-save-btn"),
@@ -142,9 +145,9 @@ const STRUCTURE_FIELD_HELP = {
 };
 
 const PROJECTION_FIELD_HELP = {
-  axis_x: "Which N-D coordinate axis maps to the viewer's X axis. Range is clamped to the structure's current dimension (0..dimension-1).",
-  axis_y: "Which N-D coordinate axis maps to the viewer's Y axis. Range is clamped to the structure's current dimension (0..dimension-1).",
-  axis_z: "Which N-D coordinate axis maps to the viewer's Z axis. Range is clamped to the structure's current dimension (0..dimension-1).",
+  axis_x: "Which N-D coordinate axis maps to the viewer's X axis (1-based). Range is clamped to the structure's current dimension (1..dimension).",
+  axis_y: "Which N-D coordinate axis maps to the viewer's Y axis (1-based). Range is clamped to the structure's current dimension (1..dimension).",
+  axis_z: "Which N-D coordinate axis maps to the viewer's Z axis (1-based). Range is clamped to the structure's current dimension (1..dimension).",
   seed: "Seed for the random projection matrix. Same seed reproduces the same projection; change it to see a different random 3D 'slice' of the structure.",
   orthonormalize:
     "When on, the random projection matrix's rows are orthonormalized (QR decomposition) so it behaves like a rigid, distance-preserving slice rather than an arbitrary linear map.",
@@ -152,7 +155,7 @@ const PROJECTION_FIELD_HELP = {
     "Your own 3xdimension projection matrix as a JSON array of arrays, e.g. [[1,0,0,...],[0,1,0,...],[0,0,1,...]].\n\nAuto-filled with an identity slice sized to the current dimension whenever this Projection form is rebuilt. Switching methods or clicking Generate discards hand edits.",
   camera_distance:
     "Distance of the virtual camera along each collapsed axis for the perspective divide. Smaller values exaggerate perspective distortion; larger values approach a flat orthogonal look.",
-  pole_axis: "Which axis is stereographically collapsed. -1 is a sentinel meaning 'the last axis' (index dimension-1), not a literal negative axis.",
+  pole_axis: "Which axis is stereographically collapsed (1-based). 0 is a sentinel meaning 'the last axis', not a literal axis number.",
   radius:
     "Radius of the sphere used for the stereographic projection formula. Unrelated to the Structure panel's own Radius field used when generating hyperspheres/cross-polytopes.",
 };
@@ -160,6 +163,42 @@ const PROJECTION_FIELD_HELP = {
 function rebuildStructureForm() {
   const schema = structuresSchema[els.structureSelect.value];
   structureInputs = buildForm(els.structureParams, schema.params, {}, STRUCTURE_FIELD_HELP);
+}
+
+// axis_x/axis_y/axis_z/pole_axis are stored and sent to the API as 0-based indices
+// (pole_axis's raw -1 sentinel means "last axis"); the UI always displays 1-based
+// numbers, so the sentinel displays as 0. These helpers convert only at the DOM edge.
+const AXIS_INDEX_FIELDS = ["axis_x", "axis_y", "axis_z", "pole_axis"];
+
+function shiftAxisFieldBounds() {
+  for (const name of AXIS_INDEX_FIELDS) {
+    const input = projectionInputs[name];
+    if (!input) continue;
+    if (input.min !== "") input.min = String(Number(input.min) + 1);
+    if (input.max !== "") input.max = String(Number(input.max) + 1);
+  }
+}
+
+function shiftAxisFieldValues() {
+  for (const name of AXIS_INDEX_FIELDS) {
+    const input = projectionInputs[name];
+    if (input) input.value = String(Number(input.value) + 1);
+  }
+}
+
+/** Reads the Projection form back into 0-based API params (inverse of shiftAxisFieldValues). */
+function readProjectionParams() {
+  const values = readForm(projectionInputs);
+  for (const name of AXIS_INDEX_FIELDS) {
+    if (name in values) values[name] -= 1;
+  }
+  return values;
+}
+
+/** Writes 0-based API params into the Projection form, then re-shifts axis fields for display. */
+function writeProjectionParams(values) {
+  writeForm(projectionInputs, values);
+  shiftAxisFieldValues();
 }
 
 function rebuildProjectionForm() {
@@ -174,6 +213,39 @@ function rebuildProjectionForm() {
   if (method === "custom" && projectionInputs.matrix_json && !projectionInputs.matrix_json.value) {
     projectionInputs.matrix_json.value = defaultMatrixJson(currentDimension);
   }
+  shiftAxisFieldBounds();
+  shiftAxisFieldValues();
+}
+
+// What each viewer axis (X/Y/Z) currently represents, per projection method --
+// keep in sync with ndstudio/projections/registry.py's build_projection. `params`
+// here are the true 0-based values from readProjectionParams(); shown as 1-based.
+const AXIS_LEGEND_LABELS = {
+  orthogonal: (params) => [
+    `dim ${(params.axis_x ?? 0) + 1}`,
+    `dim ${(params.axis_y ?? 1) + 1}`,
+    `dim ${(params.axis_z ?? 2) + 1}`,
+  ],
+  perspective: () => ["dim 1", "dim 2", "dim 3"],
+  pca: () => ["PC1", "PC2", "PC3"],
+  jl: () => ["JL\u00b71", "JL\u00b72", "JL\u00b73"],
+  custom: () => ["custom row 1", "custom row 2", "custom row 3"],
+  stereographic: (params, dimension) => {
+    const pole = params.pole_axis < 0 ? dimension - 1 : params.pole_axis;
+    const kept = [];
+    for (let i = 0; i < dimension && kept.length < 3; i++) {
+      if (i !== pole) kept.push(i);
+    }
+    return kept.map((d) => `dim ${d + 1}`);
+  },
+};
+
+function updateAxisLegend(method, params, dimension) {
+  const build = AXIS_LEGEND_LABELS[method];
+  const [x, y, z] = build ? build(params, dimension) : ["\u2013", "\u2013", "\u2013"];
+  els.axisLegendX.textContent = x;
+  els.axisLegendY.textContent = y;
+  els.axisLegendZ.textContent = z;
 }
 
 function renderMeta(meta) {
@@ -240,7 +312,7 @@ function captureConfiguration() {
     },
     projection: {
       method: els.projectionSelect.value,
-      params: readForm(projectionInputs),
+      params: readProjectionParams(),
     },
     transforms: rotationPanel.getState(viewer.getRotationAngles()),
     position: positionPanel.getOffset(),
@@ -512,8 +584,9 @@ async function applyConfiguration(rawConfiguration) {
 
     els.projectionSelect.value = configuration.projection.method;
     rebuildProjectionForm();
-    writeForm(projectionInputs, configuration.projection.params);
+    writeProjectionParams(configuration.projection.params);
     viewer.setProjectionRecipe(recipe);
+    updateAxisLegend(configuration.projection.method, configuration.projection.params, currentDimension);
 
     rotationPanel.setState(configuration.transforms);
     positionPanel.setOffset(configuration.position);
@@ -573,9 +646,10 @@ async function handleApplyProjection() {
   els.projectionError.textContent = "";
   try {
     const method = els.projectionSelect.value;
-    const params = readForm(projectionInputs);
+    const params = readProjectionParams();
     const recipe = await api.project(method, currentDimension, viewer.basePoints, params);
     viewer.setProjectionRecipe(recipe);
+    updateAxisLegend(method, params, currentDimension);
     scheduleSessionSave();
   } catch (err) {
     els.projectionError.textContent = err.message;
