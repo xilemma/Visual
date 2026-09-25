@@ -157,11 +157,23 @@ export function validateConfiguration(raw, structuresSchema, projectionsSchema) 
     view = { position: cameraPosition, target };
   }
 
+  // Absent in presets/sessions saved before the focus window existed -- default to off.
+  let windowConfig = { enabled: false, radius: 3 };
+  if (raw.window != null) {
+    if (!isObject(raw.window)) throw new Error("Preset window configuration is invalid.");
+    const radius = Number(raw.window.radius);
+    if (!Number.isFinite(radius) || radius < 0.2 || radius > 20) {
+      throw new Error("Preset window radius must be between 0.2 and 20.");
+    }
+    windowConfig = { enabled: !!raw.window.enabled, radius };
+  }
+
   return {
     structure: { type: raw.structure.type, params: structureParams },
     projection: { method: raw.projection.method, params: projectionParams },
     transforms,
     position,
+    window: windowConfig,
     view,
     paused: !!raw.paused,
   };

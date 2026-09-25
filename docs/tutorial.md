@@ -41,6 +41,7 @@ This tutorial is the bridge between "I've never seen this app before" and
   - [Part 7 — N-D transforms explained](#part-7--n-d-transforms-explained)
   - [Part 7b — Position explained](#part-7b--position-explained)
   - [Part 7c — Saving and loading presets](#part-7c--saving-and-loading-presets)
+  - [Part 7d — Focus window explained](#part-7d--focus-window-explained)
   - [Part 8 — Leakage metrics explained](#part-8--leakage-metrics-explained)
   - [Part 9 — Guided exercises](#part-9--guided-exercises)
     - [Exercise 1 — Warm up with something you already understand](#exercise-1--warm-up-with-something-you-already-understand)
@@ -308,6 +309,9 @@ flowchart TB
   purely as a visual, in your browser.
 - **Position** (mid-right, just below N-D transforms): shift the N-D
   structure itself sideways, one slider per axis — also purely visual.
+- **Focus window** (mid-right, just below Position): optionally hard-clip
+  the view to a sphere around the origin, so you see only part of the
+  structure at a time.
 - **Leakage metrics** (bottom-right): click **Analyze Leakage** to get
   real numbers on how much the current shadow is distorting the truth.
 
@@ -487,6 +491,10 @@ Position and N-D transforms compose cleanly, in that order.
   centered, just as every transform starts at Angle/Phase 0.
 - **Reset position** snaps every axis back to 0 without regenerating,
   exactly like **Reset transforms** does for angles and phases.
+- Double-click a single axis's slider to zero just that one axis, the same
+  double-click-to-reset shortcut used by N-D transforms' Speed slider and
+  Angle/Phase dial — use this instead of **Reset position** when you only
+  want to zero one axis.
 - With 4–12 sliders depending on the current dimension, the Position list
   scrolls independently once it gets tall — you don't need to scroll the
   whole right-hand panel just to reach Leakage metrics below it.
@@ -503,6 +511,10 @@ Position and N-D transforms compose cleanly, in that order.
 > derived from a point's raw distance from the origin — for those two
 > methods specifically, moving the structure closer to or farther from the
 > origin really can change how distorted it looks.
+
+Position has a second job too, once you bring **Focus window** (next) into
+the picture: since that window is always centered on the origin, Position
+becomes the way you decide *which part* of the structure ends up inside it.
 
 ---
 
@@ -538,6 +550,58 @@ either format, validates its version and parameters, and offers **Replace**,
 **Keep both**, or **Cancel import** when a name already exists. Browser storage is
 the convenience copy; exported JSON is the portable backup for another browser,
 profile, computer, or app origin.
+
+---
+
+## Part 7d — Focus window explained
+
+Every control so far still projects the *entire* structure, every frame —
+Position moves it, N-D transforms spin or scale it, but no point is ever
+left out. Sometimes you want to look at only *part* of a structure instead
+of all of it at once: one corner of a hypercube, or just fewer competing
+lines when a wireframe gets visually busy at higher dimensions.
+
+That's what **Focus window** (right below Position) does: a single sphere
+of a chosen **Radius**, centered on the origin, applied every frame *after*
+N-D transforms and Position but *before* projection. Any point — and any
+wireframe edge with either endpoint — outside that sphere simply isn't
+drawn that frame. Nothing is moved or faded, just temporarily left out.
+
+- **Enable focus window** starts unchecked. With it off, every point is
+  projected exactly as in every earlier part of this tutorial — nothing
+  about the rest of the app changes unless you turn this on.
+- Checking it enables **Radius** (slider + number box, 0.2–20, default 3)
+  and a live readout underneath reading "N of M points visible", refreshed
+  up to 10 times per second.
+- Because the window is centered on a *fixed* point (the origin) rather
+  than on the structure itself, **Position becomes the window's aim**:
+  drag a Position slider and you're moving the *object* through a
+  *stationary* window, bringing a different part of it inside. This is the
+  single most important thing to understand about this control.
+- If N-D transforms are playing, the structure keeps rotating *through*
+  the fixed window, so the visible subset keeps changing over time even
+  without touching Position — click **Pause** (see
+  [Part 7](#part-7--n-d-transforms-explained)) for a still picture of one
+  specific slice.
+
+> **Why a sphere fixed at the origin, instead of a crop that travels with
+> the object?** A window that moved with the structure would always show
+> the same chunk of it, no matter how you rotated or repositioned that
+> structure — not very useful for exploring. A window fixed at the origin,
+> combined with Position (to move the object) and N-D transforms (to
+> rotate it), lets you sweep *any* part of a structure through the same
+> stationary sphere — the same idea behind a hyperplane cross-section
+> revealing a 4-D object's interior one slice at a time.
+
+Try it: generate a **Hypercube** at **Dimension** 4, check **Enable focus
+window**, and set **Radius** to about `1.9`. With every Position slider
+still at 0, every one of the 16 corners is exactly the same distance from
+the origin, so the readout shows either all 16 visible or all 16 gone,
+depending on the radius — not a partial cut yet. Now drag Position's
+**axis 1** slider to about `1.5`: roughly half the corners are now closer
+to the origin than the other half, and the readout splits accordingly
+(something like "8 of 16 points visible"). That split is Position aiming
+the window, exactly as described above.
 
 ---
 
@@ -698,6 +762,7 @@ click.
 | "The dimension badge didn't update when I typed a new Dimension value." | It only updates after a **successful** Generate completes, reading the server's response — not from the field itself as you type. |
 | "A tooltip disappeared when I clicked a spinner arrow or another control." | Intentional: pointer-down, keyboard activation, or Escape dismisses it and suppresses it until the pointer leaves or focus moves. Hold still over the control again after re-entering for about 650 ms. The main canvas deliberately has no tooltip; use its bottom hint. |
 | "My presets disappeared when I changed from `127.0.0.1` to `localhost`." | Browser storage is scoped to the exact origin, so those addresses have separate preset collections. Return to the original address or export there and import the JSON at the new address. |
+| "I enabled Focus window and nothing looks different." | The default Radius (3) may simply be larger than your structure's distance from the origin, so nothing is clipped yet — shrink Radius, or check the "N of M points visible" readout to confirm whether anything is actually being excluded. Remember the window is centered on the origin, not on the object — use Position to bring a different part of the object inside it. See [Part 7d](#part-7d--focus-window-explained). |
 
 ---
 
@@ -734,6 +799,11 @@ click.
   slider per axis, shifting the structure without changing its
   orientation. Applied after N-D transforms and before projection, and resets
   to 0 on every Generate. See [Part 7b](#part-7b--position-explained).
+- **Focus window** — a sphere of a chosen radius, centered on the origin,
+  that hides any point (and any wireframe edge with either endpoint)
+  outside it, applied after N-D transforms and Position and before
+  projection. Off by default. See
+  [Part 7d](#part-7d--focus-window-explained).
 - **Preset** — a named, versioned configuration stored in this browser. It
   captures structure, projection, transforms and phases, Position, and camera
   view. JSON export makes it portable. See

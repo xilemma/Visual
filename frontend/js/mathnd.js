@@ -43,6 +43,37 @@ export function translate(points, offset) {
   return points.map((p) => p.map((v, i) => v + (offset[i] || 0)));
 }
 
+// Keeps only points within `radius` of the origin (Euclidean N-D norm), applied
+// after rotation/Position and before projection -- a fixed sphere the object
+// rotates/shifts through, rather than a crop that travels with the object.
+// Infinity/null radius is a no-op (every point kept). Returns `indices` (each
+// kept point's original index) so callers can re-fetch per-point data such as
+// color, and `edges` remapped to the new compacted index space (an edge is
+// dropped unless both endpoints survive).
+export function windowFilter(points, edges, radius) {
+  if (radius == null || !Number.isFinite(radius)) {
+    return { points, edges, indices: points.map((_, i) => i) };
+  }
+  const kept = [];
+  const indices = [];
+  const remap = new Array(points.length).fill(-1);
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    let sumSq = 0;
+    for (let c = 0; c < p.length; c++) sumSq += p[c] * p[c];
+    if (Math.sqrt(sumSq) <= radius) {
+      remap[i] = kept.length;
+      indices.push(i);
+      kept.push(p);
+    }
+  }
+  const keptEdges = [];
+  for (const [a, b] of edges) {
+    if (remap[a] !== -1 && remap[b] !== -1) keptEdges.push([remap[a], remap[b]]);
+  }
+  return { points: kept, edges: keptEdges, indices };
+}
+
 export function applyMatrixProjection(points, matrix, mean) {
   return points.map((p) => {
     const out = [0, 0, 0];

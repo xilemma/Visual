@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { applyRotations, translate, applyProjection } from "./mathnd.js";
+import { applyRotations, translate, windowFilter, applyProjection } from "./mathnd.js";
 
 const PALETTE = [
   [0.36, 0.64, 0.98],
@@ -94,13 +94,17 @@ export class Viewer {
     this.basePoints = [];
     this.edges = [];
     this.labels = null;
+    this.baseColors = null; // Float32Array indexed by original point index, decoupled from the (possibly filtered/compacted) geometry
     this.rotations = []; // each entry: { id, plane: [i, j], speed, angle }
     this.offset = []; // N-D translation offset, added after rotation, before projection
+    this.windowRadius = Infinity; // focus-window clip radius from the origin, after rotation+offset, before projection; Infinity = disabled
     this.animating = true;
     this.projectionRecipe = null;
     this._lastFrameTime = null;
     this._lastTransformStateEmit = null;
     this._transformStateListener = null;
+    this._lastWindowStateEmit = null;
+    this._windowStateListener = null;
     this._lastTransformed = [];
     this._lastProjected = [];
 
@@ -147,6 +151,11 @@ export class Viewer {
     this.offset = offset;
   }
 
+  /** Sets the focus-window clip radius (Euclidean N-D distance from the origin). Infinity/null/<=0 disables it. */
+  setWindowRadius(radius) {
+    this.windowRadius = radius == null || !Number.isFinite(radius) || radius <= 0 ? Infinity : radius;
+  }
+
   getView() {
     return {
       position: this.camera.position.toArray(),
@@ -180,6 +189,11 @@ export class Viewer {
     this._transformStateListener = listener;
   }
 
+  /** Subscribe to live { visible, total } focus-window counts (emitted at most 10 times/second). */
+  setWindowStateListener(listener) {
+    this._windowStateListener = listener;
+  }
+
   /** Snaps every rotation plane back to angle 0 (the just-generated/just-reset pose). */
   resetRotations() {
     for (const r of this.rotations) r.angle = 0;
@@ -195,7 +209,7 @@ export class Viewer {
       colors[i * 3 + 1] = g;
       colors[i * 3 + 2] = b;
     }
-    this.pointsGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    this.baseColors = colors;
   }
 
   /** Snapshot of the current (rotated + translated) N-D points and their live 3D projection,
@@ -224,9 +238,17 @@ export class Viewer {
     if (this.basePoints.length && this.projectionRecipe) {
       const rotated = this.rotations.length ? applyRotations(this.basePoints, this.rotations) : this.basePoints;
       const moved = this.offset.some((v) => v !== 0) ? translate(rotated, this.offset) : rotated;
-      const projected = applyProjection(moved, this.projectionRecipe);
-      this._updateGeometry(projected);
-      this._lastTransformed = moved;
+      const { points: windowed, edges: windowedEdges, indices } = windowFilter(moved, this.edges, this.windowRadius);
+      if (
+        this._windowStateListener &&
+        (this._lastWindowStateEmit == null || now - this._lastWindowStateEmit >= 100)
+      ) {
+        this._lastWindowStateEmit = now;
+        this._windowStateListener({ visible: windowed.length, total: this.basePoints.length });
+      }
+      const projected = applyProjection(windowed, this.projectionRecipe);
+      this._updateGeometry(projected, windowedEdges, indices);
+      this._lastTransformed = windowed;
       this._lastProjected = projected;
     }
 
@@ -234,7 +256,7 @@ export class Viewer {
     this.renderer.render(this.scene, this.camera);
   }
 
-  _updateGeometry(projected) {
+  _updateGeometry(projected, edges, indices) {
     const n = projected.length;
     let positions = this.pointsGeometry.getAttribute("position");
     if (!positions || positions.count !== n) {
@@ -246,8 +268,9 @@ export class Viewer {
     }
     positions.needsUpdate = true;
     this.pointsGeometry.computeBoundingSphere();
+    this._writeColors(indices);
 
-    const edgeCount = this.edges.length;
+    const edgeCount = edges.length;
     if (edgeCount) {
       let linePos = this.lineGeometry.getAttribute("position");
       const needed = edgeCount * 2;
@@ -256,7 +279,7 @@ export class Viewer {
         this.lineGeometry.setAttribute("position", linePos);
       }
       let k = 0;
-      for (const [a, b] of this.edges) {
+      for (const [a, b] of edges) {
         linePos.setXYZ(k++, projected[a][0], projected[a][1], projected[a][2]);
         linePos.setXYZ(k++, projected[b][0], projected[b][1], projected[b][2]);
       }
@@ -265,5 +288,20 @@ export class Viewer {
     } else {
       this.lineGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(0), 3));
     }
+  }
+
+  /** Re-syncs the color attribute to whatever (possibly filtered/compacted) points are currently drawn. */
+  _writeColors(indices) {
+    const n = indices.length;
+    let colors = this.pointsGeometry.getAttribute("color");
+    if (!colors || colors.count !== n) {
+      colors = new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+      this.pointsGeometry.setAttribute("color", colors);
+    }
+    for (let k = 0; k < n; k++) {
+      const orig = indices[k];
+      colors.setXYZ(k, this.baseColors[orig * 3], this.baseColors[orig * 3 + 1], this.baseColors[orig * 3 + 2]);
+    }
+    colors.needsUpdate = true;
   }
 }

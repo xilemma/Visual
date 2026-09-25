@@ -33,6 +33,11 @@ const els = {
   positionControls: document.getElementById("position-controls"),
   resetPositionBtn: document.getElementById("reset-position-btn"),
 
+  windowEnabledCheckbox: document.getElementById("window-enabled-checkbox"),
+  windowRadiusSlider: document.getElementById("window-radius-slider"),
+  windowRadiusNumber: document.getElementById("window-radius-number"),
+  windowReadout: document.getElementById("window-readout"),
+
   analyzeBtn: document.getElementById("analyze-btn"),
   metricsReadout: document.getElementById("metrics-readout"),
 
@@ -78,6 +83,9 @@ viewer.setTransformStateListener((liveAngles) => {
   rotationPanel.updateLiveAngles(liveAngles);
   scheduleSessionSave();
 });
+viewer.setWindowStateListener(({ visible, total }) => {
+  els.windowReadout.textContent = windowEnabled ? `${visible} of ${total} points visible` : "";
+});
 const positionPanel = new PositionPanel(els.positionControls, (offset) => {
   viewer.setOffset(offset);
   scheduleSessionSave();
@@ -90,6 +98,8 @@ let currentDimension = 6;
 let structureInputs = {};
 let projectionInputs = {};
 let rotationsPaused = false;
+let windowEnabled = false;
+let windowRadius = 3;
 let presets = [];
 let activePresetId = null;
 let sessionSaveTimer = null;
@@ -101,6 +111,14 @@ function setPaused(paused) {
   rotationPanel.setPaused(rotationsPaused, rotationsPaused ? viewer.getRotationAngles() : null);
   els.pauseBtn.textContent = rotationsPaused ? "\u25B6 Resume" : "\u23F8 Pause";
   els.pauseBtn.setAttribute("aria-pressed", String(rotationsPaused));
+}
+
+/** Pushes enabled/radius to the Viewer and syncs the slider/number disabled state + readout. */
+function applyWindowState() {
+  viewer.setWindowRadius(windowEnabled ? windowRadius : Infinity);
+  els.windowRadiusSlider.disabled = !windowEnabled;
+  els.windowRadiusNumber.disabled = !windowEnabled;
+  if (!windowEnabled) els.windowReadout.textContent = "";
 }
 
 function populateSelect(select, schema) {
@@ -316,6 +334,7 @@ function captureConfiguration() {
     },
     transforms: rotationPanel.getState(viewer.getRotationAngles()),
     position: positionPanel.getOffset(),
+    window: { enabled: windowEnabled, radius: windowRadius },
     view: viewer.getView(),
     paused: rotationsPaused,
   };
@@ -590,6 +609,12 @@ async function applyConfiguration(rawConfiguration) {
 
     rotationPanel.setState(configuration.transforms);
     positionPanel.setOffset(configuration.position);
+    windowEnabled = configuration.window.enabled;
+    windowRadius = configuration.window.radius;
+    els.windowEnabledCheckbox.checked = windowEnabled;
+    els.windowRadiusSlider.value = String(windowRadius);
+    els.windowRadiusNumber.value = String(windowRadius);
+    applyWindowState();
     viewer.setView(configuration.view);
     els.metricsReadout.innerHTML = "";
   } finally {
@@ -699,6 +724,35 @@ async function init() {
     scheduleSessionSave();
   });
   els.resetPositionBtn.addEventListener("click", () => positionPanel.reset());
+
+  const clampWindowRadius = (v) => Math.min(20, Math.max(0.2, v));
+  els.windowEnabledCheckbox.addEventListener("change", () => {
+    windowEnabled = els.windowEnabledCheckbox.checked;
+    applyWindowState();
+    scheduleSessionSave();
+  });
+  els.windowRadiusSlider.addEventListener("input", () => {
+    windowRadius = parseFloat(els.windowRadiusSlider.value);
+    els.windowRadiusNumber.value = String(windowRadius);
+    applyWindowState();
+    scheduleSessionSave();
+  });
+  els.windowRadiusNumber.addEventListener("input", () => {
+    const val = parseFloat(els.windowRadiusNumber.value);
+    if (Number.isNaN(val)) return; // let them keep typing
+    windowRadius = val;
+    els.windowRadiusSlider.value = String(clampWindowRadius(val));
+    applyWindowState();
+    scheduleSessionSave();
+  });
+  els.windowRadiusNumber.addEventListener("blur", () => {
+    const clamped = clampWindowRadius(parseFloat(els.windowRadiusNumber.value) || 3);
+    windowRadius = clamped;
+    els.windowRadiusNumber.value = String(clamped);
+    els.windowRadiusSlider.value = String(clamped);
+    applyWindowState();
+    scheduleSessionSave();
+  });
   els.analyzeBtn.addEventListener("click", handleAnalyze);
 
   els.presetSelect.addEventListener("change", () => {

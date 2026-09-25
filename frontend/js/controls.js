@@ -570,7 +570,7 @@ export class PositionPanel {
       slider.max = "5";
       slider.step = "0.05";
       slider.value = String(this.offset[axis]);
-      slider.dataset.tooltip = `Shifts every point's axis-${axis + 1} coordinate by this amount, applied after rotation and before projection.`;
+      slider.dataset.tooltip = `Shifts every point's axis-${axis + 1} coordinate by this amount, applied after rotation and before projection. Double-click to reset just this axis to 0.`;
 
       const number = document.createElement("input");
       number.type = "number";
@@ -583,6 +583,13 @@ export class PositionPanel {
       slider.addEventListener("input", () => {
         this.offset[axis] = parseFloat(slider.value);
         number.value = String(this.offset[axis]);
+        this._emit();
+      });
+      // Same double-click-to-zero convention as the rotation Speed slider and Angle/Phase dial.
+      slider.addEventListener("dblclick", () => {
+        this.offset[axis] = 0;
+        slider.value = "0";
+        number.value = "0";
         this._emit();
       });
       number.addEventListener("input", () => {

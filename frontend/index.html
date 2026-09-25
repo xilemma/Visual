@@ -89,6 +89,18 @@
         <button id="reset-position-btn" data-tooltip="Snaps every Position axis back to 0. N-D transform angles and phases are unchanged.">Reset position</button>
       </div>
 
+      <h2 data-tooltip="Hard-clips the point cloud to a sphere around the origin, applied every frame after N-D transforms and Position, before projection. Purely client-side -- lets you inspect one region of a structure instead of always seeing the whole thing at once. Position aims the window: drag it to bring a different part of the object inside this fixed-size sphere.">Focus window</h2>
+      <div class="field">
+        <label for="window-enabled-checkbox" data-tooltip="When off (default), every point is projected -- exactly as before this control existed.">Enable focus window</label>
+        <input type="checkbox" id="window-enabled-checkbox" data-tooltip="When off (default), every point is projected -- exactly as before this control existed." />
+      </div>
+      <div class="position-row">
+        <span class="position-axis-label">Radius</span>
+        <input type="range" id="window-radius-slider" min="0.2" max="20" step="0.1" value="3" disabled data-tooltip="Keeps only points within this distance of the origin, measured after N-D transforms and Position, before projection. Drag Position to bring a different part of the object inside this fixed-size sphere." />
+        <input type="number" id="window-radius-number" min="0.2" max="20" step="0.1" value="3" disabled data-tooltip="Same radius, typed exactly instead of dragged." />
+      </div>
+      <div id="window-readout" class="meta-readout" data-tooltip="How many of the current structure's points currently fall inside the focus window. Updates live, at most 10 times per second."></div>
+
       <h2 data-tooltip="Compares whatever is currently on screen (including live rotations, axis scales, and position) to its N-D source, using the server's SciPy implementation. Requires a generated structure and an applied projection first.">Leakage metrics</h2>
       <p class="hint-text">Compares the current N-D point positions to their live 3D projection.</p>
       <button id="analyze-btn" data-tooltip="Sends the exact transformed and positioned N-D points and 3D projection most recently drawn on screen to the server for the five leakage metrics below.&#10;&#10;This differs from Apply Projection (which always uses the untransformed base points), so results can differ between clicks while transforms animate. For reproducible results, click Pause first (or set every transform row's speed to 0).">Analyze Leakage</button>

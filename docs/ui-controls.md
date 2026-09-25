@@ -22,6 +22,7 @@ format in [frontend/js/presets.js](../frontend/js/presets.js).
 - [Projection panel](#projection-panel)
 - [N-D transforms](#n-d-transforms)
 - [Position](#position)
+- [Focus window](#focus-window)
 - [Leakage metrics](#leakage-metrics)
 - [Cross-control interrelationships (read this)](#cross-control-interrelationships-read-this)
 - [Full control reference table](#full-control-reference-table)
@@ -584,6 +585,10 @@ independent planes. Each row is:
   number box live; typing in the number box updates the slider, clamped to
   -5..5 on blur. There is no persisted "angle"/animation state to preserve
   here — the value typed *is* the current offset, immediately.
+- Double-clicking a row's slider resets just that axis to 0 (the paired
+  number box updates to match) — the same double-click-to-zero convention
+  as N-D transforms' Speed slider and Angle/Phase dial. `#reset-position-btn`
+  (below) zeroes every axis at once; this zeroes only the one row.
 - `#position-controls` itself scrolls independently (`max-height: 220px`)
   once the row count exceeds a handful, so a 12-D structure's 12 sliders
   don't push the rest of the panel out of view.
@@ -619,6 +624,75 @@ are the exception: both divide by a term derived from a point's absolute
 coordinate (`camera_distance - w`, `radius - w`), so moving the structure
 relative to the origin can genuinely change how distorted it looks under
 those two methods specifically.
+
+## Focus window
+
+Between Position and Leakage metrics in `#projection-panel`
+(`#window-enabled-checkbox`, `#window-radius-slider`, `#window-radius-number`,
+`#window-readout`). Hard-clips the point cloud to a sphere of a chosen radius
+centered on the origin, applied every frame after N-D transforms and Position
+but before projection (see [Per-frame render pipeline](#viewer)) — a fixed
+region the object rotates/shifts through, not a crop that travels with the
+object. Like N-D transforms and Position, this is purely client-side.
+
+### Enable checkbox — `#window-enabled-checkbox`
+
+Starts unchecked. `change` toggles `windowEnabled` and calls
+`viewer.setWindowRadius(windowEnabled ? windowRadius : Infinity)` — `Infinity`
+is `Viewer`'s internal "disabled" sentinel (see `windowFilter` in
+[mathnd.js](../frontend/js/mathnd.js)), so unchecking is exactly equivalent to
+an infinitely large radius, not a separate code path. Also disables/enables
+`#window-radius-slider` and `#window-radius-number`, and clears
+`#window-readout` when unchecked.
+
+### Radius — `#window-radius-slider` / `#window-radius-number`
+
+Paired range + number input, both **0.2..20**, step 0.1, default **3**.
+Dragging the slider updates the number box live; typing in the number box
+updates the slider, clamped to 0.2..20 on blur — the same pattern as
+Position's rows. Disabled (grayed out, inert) whenever the checkbox above is
+unchecked.
+
+### Readout — `#window-readout`
+
+Populated by `Viewer`'s throttled (max 10 Hz) window-state listener as
+"N of M points visible", where N is the post-filter point count and M is
+`basePoints.length`. Blank whenever the checkbox is unchecked, regardless of
+the last radius typed.
+
+### Filtering behavior
+
+`windowFilter(points, edges, radius)` in [mathnd.js](../frontend/js/mathnd.js)
+keeps a point iff its Euclidean N-D norm is `<= radius`, computed on the
+already-rotated-and-Position-shifted points (`Viewer._loop`'s `moved` — the
+same array Position's offset was just added to). **Position is therefore the
+window's aim**: it moves the object relative to a window that always stays
+centered at the origin. An edge is kept only if **both** endpoints survive;
+there is no partial/interpolated edge clipping. `Viewer._lastTransformed` and
+`Viewer._lastProjected` are recorded from this same filtered subset every
+frame, so Analyze Leakage automatically analyzes whatever is currently
+visible — there is no separate windowing-aware branch in
+`getSnapshotForMetrics`.
+
+Colors are re-synced from a full-length, original-index-ordered
+`Viewer.baseColors` array every frame, since the position/color buffers are
+compacted (and reordered) to the surviving point count rather than held at a
+fixed `basePoints.length`.
+
+### Dimension coupling
+
+Unlike Position and N-D transform phases, **Focus window state is not reset
+by Generate** — `handleGenerate`/`handleApplyProjection` never touch
+`windowEnabled`/`windowRadius`. Regenerating with a new seed (or even a
+different structure type) keeps whatever radius/enabled state was already set.
+
+### Presets and session persistence
+
+`captureConfiguration()` stores `{ enabled, radius }` under a `window` key,
+alongside `position`. `validateConfiguration` in
+[presets.js](../frontend/js/presets.js) defaults a missing `window` key to
+`{ enabled: false, radius: 3 }`, so presets, exports, or a session snapshot
+saved before this feature existed still load without a validation error.
 
 ## Leakage metrics
 
@@ -735,6 +809,14 @@ that?" questions.
     cached vertices.** It validates and obtains both server results before
     committing the UI, then restores client-side transforms, Position, and view.
     The result always opens paused. See [Presets](#presets).
+13. **Focus window state persists across Generate**, unlike Position and
+    transform phases (point 11 above) — it's a viewing/inspection preference,
+    not part of the structure's transform state. See [Focus window](#focus-window).
+14. **Focus window filters before projection, so Analyze Leakage only ever
+    sees the currently-visible subset** — points outside the radius are
+    absent from both `pointsNd` and `points3d` in `getSnapshotForMetrics`,
+    the same way Plane rotations and Position are already baked in. See
+    [Focus window](#focus-window).
 
 ## Full control reference table
 
@@ -768,8 +850,11 @@ that?" questions.
 | `pause-btn` | `<button>` | N-D transforms | `click` | `setPaused` (main.js) | Freezes/resumes every row; live readouts run at 10 Hz while playing and synchronize exactly on pause |
 | `reset-rotation-btn` | `<button>` | N-D transforms | `click` | inline listener | Resets Plane rotation angles to 0 and Axis scale phases to 0 (factor 1×) |
 | (per-row) Angle/Phase + dial | number + dial | N-D transforms | `input`/`change`/pointer drag/double-click | inline listeners (`RotationPanel._render`) | Live 10 Hz readout while playing; manually editable while paused; dial double-click resets that row to 0° |
-| `position-controls` | dynamic rows | Position | row edits | `PositionPanel._emit` | `viewer.setOffset` (immediate, no Apply step) |
+| `position-controls` | dynamic rows | Position | row edits | `PositionPanel._emit` | `viewer.setOffset` (immediate, no Apply step); a row's slider double-click zeroes just that axis |
 | `reset-position-btn` | `<button>` | Position | `click` | inline listener | `positionPanel.reset()`; re-renders sliders to 0 and calls `viewer.setOffset` |
+| `window-enabled-checkbox` | `<input type=checkbox>` | Focus window | `change` | inline listener | Toggles the clip on/off; calls `viewer.setWindowRadius`, enables/disables the radius controls |
+| `window-radius-slider` / `window-radius-number` | range + number | Focus window | `input`/`blur` | inline listeners | Sets the clip radius (0.2..20, default 3); same slider/number sync pattern as Position |
+| `window-readout` | readout | Focus window | n/a | `Viewer` window-state listener | "N of M points visible", throttled to 10 Hz, blank while disabled |
 | `analyze-btn` | `<button>` | Leakage metrics | `click` | `handleAnalyze` | Fetches metrics from the live render snapshot |
 | `metrics-readout` | readout | Leakage metrics | n/a | `renderMetrics` | Shows 5 metric groups + sampling note |
 | `current-dimension` | readout | Header | n/a | `handleGenerate` | Authoritative dimension, post-Generate only |

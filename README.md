@@ -36,6 +36,9 @@ for smooth 60fps interaction.
 - User-defined projection matrix
 - Animated rotation in any coordinate plane (combine with any method above)
 - Explicit Axis scale transforms for stretching, collapsing, or reflecting one coordinate
+- Focus window: hard-clip the view to a sphere around the origin, so only
+  part of a structure is visible at a time (Position aims it, since the
+  window itself is always centered on the origin)
 
 **Leakage metrics** (the "is this projection lying to you?" panel)
 
@@ -122,8 +125,10 @@ first time a browser loads the page.
    small set of parameters for the nonlinear perspective/stereographic
    formulas.
 3. **Transform & position**: the browser applies each configured Plane
-   rotation or Axis scale, then an optional N-D translation offset, and then
-   the projection recipe to every point on every frame in
+   rotation or Axis scale, then an optional N-D translation offset, then an
+   optional focus-window radius clip (drops any point, and any wireframe
+   edge with either endpoint, farther than a chosen radius from the origin),
+   and finally the projection recipe to every point on every frame in
    `frontend/js/mathnd.js`. Transform animation can be paused without losing
    the current pose; Angle/Phase readouts update at 10 Hz while playing;
    Reset transforms returns rotations to angle 0 and scales to phase 0
