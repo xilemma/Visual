@@ -142,11 +142,11 @@ function defaultMatrixJson(dimension) {
 
 const STRUCTURE_FIELD_HELP = {
   dimension:
-    "How many coordinates each generated point has. Most structures accept 4-12; Root System E_n offers 6, 7, or 8; Clifford Torus and Klein Bottle are fixed at 4.\n\nTakes effect only after Generate succeeds -- the dimension badge, N-D transform targets, and Projection axis fields all re-clamp to the server's returned value at that point, not before.",
+    "How many coordinates each generated point has. Most structures accept 4-12; Root System E_n offers 6, 7, or 8; Clifford Torus, Klein Bottle, and Hopf Fibration are fixed at 4.\n\nTakes effect only after Generate succeeds -- the dimension badge, N-D transform targets, and Projection axis fields all re-clamp to the server's returned value at that point, not before.",
   num_points:
     "How many points to generate. Larger counts render fine, but the Leakage metrics panel subsamples down to 400 points (by default) for responsiveness when you click Analyze, regardless of this setting.",
   radius:
-    "Overall radius used by the selected sphere, polytope, or Clifford torus. A structure-generation parameter only -- unrelated to the Projection panel's Stereographic Radius.",
+    "Overall radius used by the selected sphere, polytope, Clifford torus, or Hopf fibration (the S^3 each fiber lives on). A structure-generation parameter only -- unrelated to the Projection panel's Stereographic Radius.",
   mode: "'spherical_code' relaxes points apart on the sphere via pairwise repulsion for a more even spread; 'random' leaves them at raw random sphere samples.",
   seed: "Seed for the random number generator. The same seed and parameters always reproduce the exact same point cloud -- change it to get a different random layout without changing anything else.",
   edge_length: "Length of each hypercube edge, i.e. the distance between adjacent vertices.",
@@ -160,6 +160,12 @@ const STRUCTURE_FIELD_HELP = {
     "0-based index of the point whose Voronoi neighborhood is extracted. Must be less than num_points -- but this field's own max (149) is NOT automatically narrowed to your chosen num_points, so an index too high for a smaller num_points only fails once you click Generate.",
   resolution_u: "Number of samples around the surface's u direction. Total points equal resolution_u x resolution_v; higher values make a denser wireframe.",
   resolution_v: "Number of samples around the surface's v direction. Total points equal resolution_u x resolution_v; higher values make a denser wireframe.",
+  num_fibers:
+    "How many representative Hopf fibers (circles) to generate, sampled from points spread over the base S^2. Total point count = num_fibers x points_per_fiber.",
+  points_per_fiber:
+    "How many samples to place around each Hopf fiber's circle. Higher values make each loop look smoother under rotation/projection, at the cost of more points and edges to render.",
+  fiber_distribution:
+    "'uniform' spaces the base points deterministically and evenly over S^2 (a golden-angle spiral, ignores seed); 'random' scatters them randomly on S^2 using seed.",
 };
 
 const PROJECTION_FIELD_HELP = {

@@ -25,6 +25,8 @@ for smooth 60fps interaction.
 - Voronoi neighborhood (dimension 4–8, via Delaunay duality)
 - Clifford torus (a flat torus embedded in 4-D)
 - Klein bottle embedded in 4-D, with its wireframe closed across the twisted seam
+- Hopf fibration: a finite family of linked circles (fibers) of the Hopf map
+  S³ → S², embedded in 4-D
 
 **Projections**
 
@@ -152,6 +154,10 @@ first time a browser loads the page.
   `eval` — and checked for shape/finiteness).
 - Clifford torus and Klein bottle are fixed at ambient dimension 4. The
   Klein bottle wireframe uses `(2π, v) ~ (0, -v)`, so it has no open seam.
+- Hopf fibration is also fixed at ambient dimension 4: `num_fibers`
+  representative points are sampled on the base S² and lifted to S³ via the
+  standard Hopf section, then each is swept through a common phase to trace
+  its fiber as a closed loop (see `ndstudio/structures/hopf_fibration.py`).
 - Leakage metrics are computed on a random subsample (default cap 400
   points) when the point set is larger, for responsiveness; the response
   reports whether subsampling occurred.

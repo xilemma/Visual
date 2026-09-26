@@ -46,8 +46,8 @@
     <aside id="structure-panel" class="panel">
       <h2 data-tooltip="Generates the N-D point set. This is the only panel that can change the dimension, which the Projection panel and N-D transforms both depend on.">Structure</h2>
       <div class="field">
-        <label for="structure-type-select" data-tooltip="Chooses which N-D structure generator to use. Changing this rebuilds its parameter fields, including Dimension: most accept 4-12, Root System E_n offers 6/7/8, and Clifford Torus/Klein Bottle are fixed at 4. Click Generate to apply the change.">Type</label>
-        <select id="structure-type-select" data-tooltip="Chooses which N-D structure generator to use. Changing this rebuilds its parameter fields, including Dimension: most accept 4-12, Root System E_n offers 6/7/8, and Clifford Torus/Klein Bottle are fixed at 4. Click Generate to apply the change."></select>
+        <label for="structure-type-select" data-tooltip="Chooses which N-D structure generator to use. Changing this rebuilds its parameter fields, including Dimension: most accept 4-12, Root System E_n offers 6/7/8, and Clifford Torus/Klein Bottle/Hopf Fibration are fixed at 4. Click Generate to apply the change.">Type</label>
+        <select id="structure-type-select" data-tooltip="Chooses which N-D structure generator to use. Changing this rebuilds its parameter fields, including Dimension: most accept 4-12, Root System E_n offers 6/7/8, and Clifford Torus/Klein Bottle/Hopf Fibration are fixed at 4. Click Generate to apply the change."></select>
       </div>
       <div id="structure-params"></div>
       <button id="generate-btn" class="primary" data-tooltip="Sends the Structure panel's fields to the server and replaces the point cloud in the viewer.&#10;&#10;Also updates the dimension badge, re-clamps every N-D transform and Projection axis field, resets transform phases to zero, rebuilds all Projection fields from their defaults, and automatically re-applies the current projection method.">Generate</button>

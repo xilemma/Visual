@@ -11,6 +11,8 @@ def test_list_structures_and_projections():
     body = r.json()
     assert "hypersphere" in body
     assert "dimension" in body["hypersphere"]["params"]
+    assert "hopf_fibration" in body
+    assert body["hopf_fibration"]["params"]["dimension"]["options"] == [4]
 
     r = client.get("/api/projections")
     assert r.status_code == 200
@@ -30,6 +32,23 @@ def test_generate_hypercube():
 def test_generate_unknown_structure_returns_404():
     r = client.post("/api/generate", json={"structure_type": "nope", "dimension": 4, "params": {}})
     assert r.status_code == 404
+
+
+def test_generate_hopf_fibration():
+    r = client.post(
+        "/api/generate",
+        json={
+            "structure_type": "hopf_fibration",
+            "dimension": 4,
+            "params": {"num_fibers": 12, "points_per_fiber": 32},
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["dimension"] == 4
+    assert len(body["points"]) == 12 * 32
+    assert len(body["edges"]) == 12 * 32
+    assert body["meta"]["num_fibers"] == 12
 
 
 def test_generate_bad_dimension_returns_422():

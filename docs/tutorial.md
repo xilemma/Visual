@@ -375,6 +375,7 @@ is a `Type` choice in that panel.
 | **Voronoi Neighborhood** | Takes a random cloud, picks one point (`center_index`), and works out exactly which other points are its genuine geometric neighbors in N-D (via Delaunay triangulation — an advanced computational-geometry technique). The chosen center point, its true neighbors, and everyone else are colored differently. Capped at dimension 4–8 and ~150 points because this computation gets slow/unstable beyond that. | The most direct way to test "did the projection preserve *true* local neighborhoods?" — you can visually check whether the highlighted neighbors still look adjacent after projecting. |
 | **Clifford Torus** | A flat torus `S¹ × S¹` embedded in exactly 4 dimensions: one circle uses axes 0–1 and the other uses axes 2–3. Every point stays the same distance from the origin. `resolution_u` and `resolution_v` control the two wrapped sampling directions. | A clean demonstration of a surface that belongs naturally in 4-D rather than being a distorted 3-D doughnut. Rotate planes that mix its two axis pairs to reveal its hidden structure. |
 | **Klein Bottle** | A closed, non-orientable surface embedded without self-intersection in exactly 4 dimensions. Its wireframe closes with the twisted identification `(2π, v) ~ (0, -v)`, so the final ring joins the first in reverse rather than leaving an open seam. | Compare a genuine 4-D embedding with familiar self-intersecting 3-D Klein-bottle pictures, and watch projection create apparent intersections that are not present in 4-D. |
+| **Hopf Fibration** | `S³` (the 3-sphere, `|z₁|²+|z₂|²=1` for complex `z₁,z₂`) decomposes into a family of circles called fibers, one through every point, that never touch each other. This structure samples `num_fibers` of them: pick that many points spread over an ordinary 2-D sphere `S²` (evenly, via `fiber_distribution: uniform`, or randomly), lift each to a starting point on `S³`, then sweep a shared phase around to trace out its fiber as a closed loop of `points_per_fiber` samples. | The star example for **Stereographic** below: distinct fibers are provably linked in a genuine topological sense, and stereographic projection is exactly the map that reveals that linking as ordinary interlocked 3-D loops. See the worked example after the Projections table. |
 
 > **Tip:** every structure type has its own set of extra number/dropdown
 > fields (radius, point count, seed, etc.) that appear once you select it.
@@ -409,6 +410,18 @@ formula.
 > **Generate**, which automatically re-applies whatever projection method
 > is currently selected, so a brand-new structure is never left showing an
 > outdated projection.
+
+> **Worked example — linked loops:** set `Type` to **Hopf Fibration** with
+> `num_fibers` around 12–20 and `points_per_fiber` around 64–128, set
+> `Method` to **Stereographic** (default `pole_axis` — "the last axis" —
+> and `radius` 1.0, matching the structure's own `radius`), then click
+> **Generate** followed by **Apply Projection**. `S³` is a 3-sphere living
+> in 4-D, and the Hopf fibration decomposes it into circles — every fiber
+> is one circle in 4-D. None of them ever touch, yet after stereographic
+> projection into 3-D, distinct fibers appear as visibly **linked loops**.
+> That linking reflects genuine topology carried over from 4-D, not an
+> arbitrary drawing trick — rotating the structure with N-D transforms
+> changes the 3-D picture but can never unlink the loops.
 
 ---
 

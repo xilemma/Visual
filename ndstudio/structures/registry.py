@@ -6,6 +6,7 @@ from typing import Any, Callable
 from . import (
     clifford_torus,
     cross_polytope,
+    hopf_fibration,
     hypercube,
     hypersphere,
     klein_bottle,
@@ -122,6 +123,18 @@ STRUCTURES: dict[str, dict[str, Any]] = {
             "resolution_u": {"type": "int", "default": 24, "min": 4, "max": 40},
             "resolution_v": {"type": "int", "default": 24, "min": 4, "max": 40},
             "scale": {"type": "float", "default": 1.0, "min": 0.1, "max": 5},
+        },
+    },
+    "hopf_fibration": {
+        "label": "Hopf Fibration",
+        "generator": hopf_fibration.generate,
+        "params": {
+            "dimension": {"type": "choice", "default": 4, "options": [4]},
+            "num_fibers": {"type": "int", "default": 16, "min": 2, "max": 64},
+            "points_per_fiber": {"type": "int", "default": 64, "min": 12, "max": 256},
+            "radius": {"type": "float", "default": 1.0, "min": 0.1, "max": 10},
+            "fiber_distribution": {"type": "choice", "default": "uniform", "options": ["uniform", "random"]},
+            "seed": _SEED_PARAM,
         },
     },
 }

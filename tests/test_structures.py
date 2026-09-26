@@ -5,6 +5,7 @@ from scipy.spatial.distance import pdist
 from ndstudio.structures import (
     clifford_torus,
     cross_polytope,
+    hopf_fibration,
     hypercube,
     klein_bottle,
     packing,
@@ -148,3 +149,130 @@ def test_klein_bottle_shape_and_closed_twisted_u_seam():
 
     assert result.meta["closed"] is True
     assert result.meta["twisted_seam"] is True
+
+
+def _hopf_fiber_slice(result, points_per_fiber, fiber_index):
+    base = fiber_index * points_per_fiber
+    return result.points[base : base + points_per_fiber]
+
+
+def test_hopf_fibration_output_dimension_is_4():
+    result = hopf_fibration.generate(4, {"num_fibers": 5, "points_per_fiber": 16})
+    assert result.points.shape == (5 * 16, 4)
+
+
+def test_hopf_fibration_points_lie_on_requested_s3_radius():
+    result = hopf_fibration.generate(4, {"num_fibers": 10, "points_per_fiber": 20, "radius": 2.5})
+    norms = np.linalg.norm(result.points, axis=1)
+    assert np.allclose(norms, 2.5, atol=1e-8)
+
+
+def test_hopf_fibration_every_fiber_has_expected_sample_count():
+    num_fibers, points_per_fiber = 7, 24
+    result = hopf_fibration.generate(4, {"num_fibers": num_fibers, "points_per_fiber": points_per_fiber})
+    assert result.points.shape == (num_fibers * points_per_fiber, 4)
+    counts = {}
+    for label in result.labels:
+        counts[label] = counts.get(label, 0) + 1
+    assert set(counts.keys()) == set(range(num_fibers))
+    assert all(count == points_per_fiber for count in counts.values())
+
+
+def test_hopf_fibration_every_fiber_forms_one_closed_loop():
+    num_fibers, points_per_fiber = 4, 15
+    result = hopf_fibration.generate(4, {"num_fibers": num_fibers, "points_per_fiber": points_per_fiber})
+    adjacency: dict[int, list[int]] = {}
+    for i, j in result.edges:
+        adjacency.setdefault(i, []).append(j)
+        adjacency.setdefault(j, []).append(i)
+
+    for f in range(num_fibers):
+        base = f * points_per_fiber
+        members = set(range(base, base + points_per_fiber))
+        # Every vertex in a closed loop has exactly two neighbors, both within the same fiber.
+        for v in members:
+            assert set(adjacency[v]) <= members
+            assert len(adjacency[v]) == 2
+        # A single walk from the first vertex should visit every member exactly once before returning.
+        visited = [base]
+        prev, cur = None, base
+        while True:
+            nxt = [n for n in adjacency[cur] if n != prev][0]
+            if nxt == base:
+                break
+            visited.append(nxt)
+            prev, cur = cur, nxt
+        assert set(visited) == members
+
+
+def test_hopf_fibration_no_edge_connects_different_fibers():
+    points_per_fiber = 18
+    result = hopf_fibration.generate(4, {"num_fibers": 6, "points_per_fiber": points_per_fiber})
+    for i, j in result.edges:
+        assert i // points_per_fiber == j // points_per_fiber
+
+
+def test_hopf_fibration_deterministic_for_same_seed():
+    params = {"num_fibers": 8, "points_per_fiber": 20, "fiber_distribution": "random", "seed": 42}
+    a = hopf_fibration.generate(4, params)
+    b = hopf_fibration.generate(4, params)
+    assert np.array_equal(a.points, b.points)
+
+
+def test_hopf_fibration_different_seeds_change_random_variant():
+    base_params = {"num_fibers": 8, "points_per_fiber": 20, "fiber_distribution": "random"}
+    a = hopf_fibration.generate(4, {**base_params, "seed": 1})
+    b = hopf_fibration.generate(4, {**base_params, "seed": 2})
+    assert not np.allclose(a.points, b.points)
+
+
+def test_hopf_fibration_finite_coordinates_only():
+    result = hopf_fibration.generate(4, {"num_fibers": 16, "points_per_fiber": 64})
+    assert np.all(np.isfinite(result.points))
+
+
+def test_hopf_fibration_unknown_distribution_raises():
+    with pytest.raises(ValueError):
+        hopf_fibration.generate(4, {"fiber_distribution": "spiral"})
+
+
+def test_hopf_fibration_dimension_out_of_range_raises():
+    with pytest.raises(ValueError):
+        hopf_fibration.generate(6, {})
+
+
+def test_hopf_fibration_hopf_map_invariant_constant_along_each_fiber():
+    """The Hopf map should collapse every point of a given fiber to the same S^2 point,
+    and distinct fibers (sampled apart on S^2) should map to distinguishable points."""
+    num_fibers, points_per_fiber = 6, 20
+    result = hopf_fibration.generate(
+        4, {"num_fibers": num_fibers, "points_per_fiber": points_per_fiber, "radius": 1.0}
+    )
+
+    def hopf_map(points: np.ndarray) -> np.ndarray:
+        z1 = points[:, 0] + 1j * points[:, 1]
+        z2 = points[:, 2] + 1j * points[:, 3]
+        cross = z1 * np.conj(z2)
+        return np.stack([2 * cross.real, 2 * cross.imag, np.abs(z1) ** 2 - np.abs(z2) ** 2], axis=-1)
+
+    representatives = []
+    for f in range(num_fibers):
+        fiber_points = _hopf_fiber_slice(result, points_per_fiber, f)
+        images = hopf_map(fiber_points)
+        assert np.allclose(images, images[0], atol=1e-8)
+        representatives.append(images[0])
+
+    distances = pdist(np.array(representatives))
+    assert np.min(distances) > 1e-3
+
+
+def test_hopf_fibration_schema_registered_with_expected_params():
+    from ndstudio.structures.registry import structures_schema
+
+    schema = structures_schema()
+    assert "hopf_fibration" in schema
+    entry = schema["hopf_fibration"]
+    assert entry["label"] == "Hopf Fibration"
+    assert entry["params"]["dimension"] == {"type": "choice", "default": 4, "options": [4]}
+    for name in ("num_fibers", "points_per_fiber", "radius", "fiber_distribution", "seed"):
+        assert name in entry["params"]
