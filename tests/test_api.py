@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from ndstudio.main import app
@@ -13,6 +14,8 @@ def test_list_structures_and_projections():
     assert "dimension" in body["hypersphere"]["params"]
     assert "hopf_fibration" in body
     assert body["hopf_fibration"]["params"]["dimension"]["options"] == [4]
+    assert body["600_cell"]["params"] == {"dimension": {"type": "choice", "default": 4, "options": [4]}}
+    assert body["120_cell"]["params"] == {"dimension": {"type": "choice", "default": 4, "options": [4]}}
 
     r = client.get("/api/projections")
     assert r.status_code == 200
@@ -49,6 +52,19 @@ def test_generate_hopf_fibration():
     assert len(body["points"]) == 12 * 32
     assert len(body["edges"]) == 12 * 32
     assert body["meta"]["num_fibers"] == 12
+
+
+@pytest.mark.parametrize(
+    ("structure_type", "vertex_count", "edge_count"),
+    [("600_cell", 120, 720), ("120_cell", 600, 1200)],
+)
+def test_generate_regular_4d_polytopes(structure_type, vertex_count, edge_count):
+    r = client.post("/api/generate", json={"structure_type": structure_type, "dimension": 4, "params": {}})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["dimension"] == 4
+    assert len(body["points"]) == vertex_count
+    assert len(body["edges"]) == edge_count
 
 
 def test_generate_bad_dimension_returns_422():

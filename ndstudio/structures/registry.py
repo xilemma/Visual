@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from . import (
+    cell_120,
+    cell_600,
     clifford_torus,
     cross_polytope,
     hopf_fibration,
@@ -123,6 +125,20 @@ STRUCTURES: dict[str, dict[str, Any]] = {
             "resolution_u": {"type": "int", "default": 24, "min": 4, "max": 40},
             "resolution_v": {"type": "int", "default": 24, "min": 4, "max": 40},
             "scale": {"type": "float", "default": 1.0, "min": 0.1, "max": 5},
+        },
+    },
+    "600_cell": {
+        "label": "600-cell",
+        "generator": cell_600.generate,
+        "params": {
+            "dimension": {"type": "choice", "default": 4, "options": [4]},
+        },
+    },
+    "120_cell": {
+        "label": "120-cell",
+        "generator": cell_120.generate,
+        "params": {
+            "dimension": {"type": "choice", "default": 4, "options": [4]},
         },
     },
     "hopf_fibration": {

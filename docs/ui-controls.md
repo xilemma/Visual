@@ -231,6 +231,8 @@ Per-structure schema (from
 | `voronoi_neighborhood` | Voronoi Neighborhood | int, **4–8**, default 5 | `num_points` int 10–150 (60); `center_index` int **0–149 (fixed)**, default 0; `seed` int 0–999999 (0) |
 | `clifford_torus` | Clifford Torus | **choice** `4`, default 4 | `resolution_u` int 4–40 (24); `resolution_v` int 4–40 (24); `radius` float 0.1–10 (1.0) |
 | `klein_bottle` | Klein Bottle | **choice** `4`, default 4 | `resolution_u` int 4–40 (24); `resolution_v` int 4–40 (24); `scale` float 0.1–5 (1.0) |
+| `600_cell` | 600-cell | **choice** `4`, default 4 | — |
+| `120_cell` | 120-cell | **choice** `4`, default 4 | — |
 | `hopf_fibration` | Hopf Fibration | **choice** `4`, default 4 | `num_fibers` int 2–64 (16); `points_per_fiber` int 12–256 (64); `radius` float 0.1–10 (1.0); `fiber_distribution` choice `uniform`\|`random` (uniform); `seed` int 0–999999 (0) |
 
 > **Known quirk:** `voronoi_neighborhood`'s `center_index` max is hardcoded
@@ -240,9 +242,13 @@ Per-structure schema (from
 > warning.
 
 `root_system_e` uses a dimension dropdown of `{6, 7, 8}`. Clifford Torus,
-Klein Bottle, and Hopf Fibration use a fixed dropdown containing only `4`,
-because these generators are specifically embedded in ambient 4-D. Other
-structures use numeric dimension fields over their documented ranges.
+Klein Bottle, 600-cell, 120-cell, and Hopf Fibration use a fixed dropdown
+containing only `4`, because these generators are specifically embedded in
+ambient 4-D. Other structures use numeric dimension fields over their
+documented ranges. The parameter-free 600-cell and 120-cell are the two
+exceptional 4-D-only regular polytopes with icosahedral/H4 symmetry; they are
+dual to one another and remain useful under every projection mode, rather than
+depending on Stereographic projection as the Hopf Fibration example does.
 
 ### Generate button — `#generate-btn`
 
@@ -292,6 +298,8 @@ generator in [ndstudio/structures/](../ndstudio/structures)):
 | `voronoi_neighborhood` | `center_index`, `num_neighbors` |
 | `clifford_torus` | `resolution_u`, `resolution_v`, `radius`, `num_points` |
 | `klein_bottle` | `resolution_u`, `resolution_v`, `scale`, `num_points`, `closed`, `twisted_seam` |
+| `600_cell` | `num_points`, `num_edges`, `circumradius`, `edge_length`, `symmetry`, `dual` |
+| `120_cell` | `num_points`, `num_edges`, `circumradius`, `edge_length`, `symmetry`, `dual` |
 | `hopf_fibration` | `num_fibers`, `points_per_fiber`, `radius`, `fiber_distribution`, `num_points` |
 
 ### Readouts

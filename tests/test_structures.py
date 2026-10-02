@@ -3,6 +3,8 @@ import pytest
 from scipy.spatial.distance import pdist
 
 from ndstudio.structures import (
+    cell_120,
+    cell_600,
     clifford_torus,
     cross_polytope,
     hopf_fibration,
@@ -149,6 +151,50 @@ def test_klein_bottle_shape_and_closed_twisted_u_seam():
 
     assert result.meta["closed"] is True
     assert result.meta["twisted_seam"] is True
+
+
+@pytest.mark.parametrize(
+    ("module", "vertex_count", "edge_count"),
+    [
+        (cell_600, 120, 720),
+        (cell_120, 600, 1200),
+    ],
+)
+def test_regular_4d_polytope_counts_and_uniform_edge_lengths(module, vertex_count, edge_count):
+    result = module.generate(4, {})
+
+    assert result.points.shape == (vertex_count, 4)
+    assert len(result.edges) == edge_count
+    assert np.allclose(np.linalg.norm(result.points, axis=1), 1.0)
+
+    edge_lengths = np.array([np.linalg.norm(result.points[i] - result.points[j]) for i, j in result.edges])
+    assert np.allclose(edge_lengths, edge_lengths[0], rtol=1e-12, atol=1e-12)
+
+
+def test_120_cell_dual_vertex_derivation_is_deterministic():
+    first = cell_120.vertices()
+    second = cell_120.vertices()
+    generated = cell_120.generate(4, {}).points
+
+    assert np.array_equal(first, second)
+    assert np.array_equal(generated, first)
+
+
+@pytest.mark.parametrize("module", [cell_600, cell_120])
+def test_regular_4d_polytopes_reject_other_dimensions(module):
+    with pytest.raises(ValueError):
+        module.generate(5, {})
+
+
+def test_regular_4d_polytope_schemas_are_fixed_and_parameter_free():
+    from ndstudio.structures.registry import structures_schema
+
+    schema = structures_schema()
+    for key, label in (("600_cell", "600-cell"), ("120_cell", "120-cell")):
+        assert schema[key] == {
+            "label": label,
+            "params": {"dimension": {"type": "choice", "default": 4, "options": [4]}},
+        }
 
 
 def _hopf_fiber_slice(result, points_per_fiber, fiber_index):

@@ -142,7 +142,7 @@ function defaultMatrixJson(dimension) {
 
 const STRUCTURE_FIELD_HELP = {
   dimension:
-    "How many coordinates each generated point has. Most structures accept 4-12; Root System E_n offers 6, 7, or 8; Clifford Torus, Klein Bottle, and Hopf Fibration are fixed at 4.\n\nTakes effect only after Generate succeeds -- the dimension badge, N-D transform targets, and Projection axis fields all re-clamp to the server's returned value at that point, not before.",
+    "How many coordinates each generated point has. Most structures accept 4-12; Root System E_n offers 6, 7, or 8; Clifford Torus, Klein Bottle, 600-cell, 120-cell, and Hopf Fibration are fixed at 4.\n\nTakes effect only after Generate succeeds -- the dimension badge, N-D transform targets, and Projection axis fields all re-clamp to the server's returned value at that point, not before.",
   num_points:
     "How many points to generate. Larger counts render fine, but the Leakage metrics panel subsamples down to 400 points (by default) for responsiveness when you click Analyze, regardless of this setting.",
   radius:
